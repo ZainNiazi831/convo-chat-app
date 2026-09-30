@@ -18,7 +18,6 @@ export const sendMessage = async (req, res) => {
             text,
         });
 
-        // Update lastMessage in conversation
         await Conversation.findByIdAndUpdate(conversationId, {
             lastMessage: message._id,
         });
@@ -27,6 +26,7 @@ export const sendMessage = async (req, res) => {
 
         res.status(201).json(message);
     } catch (error) {
+        console.error("sendMessage error:", error);
         res.status(500).json({ message: error.message });
     }
 };

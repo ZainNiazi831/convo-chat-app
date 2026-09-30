@@ -29,6 +29,8 @@ const Register = () => {
 
     const onSubmit = (e) => {
         e.preventDefault();
+        // 🧹 Clear any old userInfo before fresh register
+        localStorage.removeItem("userInfo");
         dispatch(register({ name, username, email, password }));
     };
 

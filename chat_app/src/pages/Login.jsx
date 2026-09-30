@@ -24,6 +24,8 @@ const Login = () => {
 
     const onSubmit = (e) => {
         e.preventDefault();
+        // 🧹 Clear any old userInfo before fresh login
+        localStorage.removeItem("userInfo");
         dispatch(login({ email, password }));
     };
 

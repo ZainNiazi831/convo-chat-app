@@ -1,22 +1,53 @@
 import { useState, useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { sendMessage } from "../redux/chatSlice";
+import { useSocket } from "../context/SocketContext";
 
 const ChatWindow = () => {
     const dispatch = useDispatch();
+    const { socket } = useSocket();
     const { selectedConversation, messages, isSending } = useSelector(
         (state) => state.chat
     );
     const { user } = useSelector((state) => state.auth);
     const [text, setText] = useState("");
+    const [isTyping, setIsTyping] = useState(false);
+    const [otherUserTyping, setOtherUserTyping] = useState(false);
     const messagesEndRef = useRef(null);
+    const typingTimeoutRef = useRef(null);
 
-    // Auto-scroll to bottom when messages change
+    // Auto-scroll
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    // Empty state
+    // Listen for typing events
+    useEffect(() => {
+        if (!socket || !user) return;
+
+        const handleUserTyping = ({ userId }) => {
+            const currentUserId = user._id || user.id;
+            if (String(userId) !== String(currentUserId)) setOtherUserTyping(true);
+        };
+
+        const handleUserStoppedTyping = ({ userId }) => {
+            const currentUserId = user._id || user.id;
+            if (String(userId) !== String(currentUserId)) setOtherUserTyping(false);
+        };
+
+        socket.on("userTyping", handleUserTyping);
+        socket.on("userStoppedTyping", handleUserStoppedTyping);
+
+        return () => {
+            socket.off("userTyping", handleUserTyping);
+            socket.off("userStoppedTyping", handleUserStoppedTyping);
+        };
+    }, [socket, user]);
+
+    useEffect(() => {
+        setOtherUserTyping(false);
+    }, [selectedConversation]);
+
     if (!selectedConversation) {
         return (
             <main style={styles.window}>
@@ -33,19 +64,47 @@ const ChatWindow = () => {
         );
     }
 
+    const currentUserId = user?._id || user?.id;
+
     const otherUser = selectedConversation.members?.find(
-        (m) => m._id !== user._id
+        (m) => String(m._id) !== String(currentUserId)
     );
 
-    const handleSend = () => {
+    // 🔥 ULTRA robust — handles string, object, _id, id — all cases
+    const isOwnMessage = (msg) => {
+        if (!msg.sender) return false;
+        const senderId =
+            typeof msg.sender === "object"
+                ? msg.sender._id || msg.sender.id
+                : msg.sender;
+        if (!senderId || !currentUserId) return false;
+        return String(senderId) === String(currentUserId);
+    };
+
+    const handleSend = async () => {
         if (!text.trim() || isSending) return;
-        dispatch(
+
+        const messageText = text.trim();
+        setText("");
+
+        if (socket && isTyping) {
+            socket.emit("stopTyping", {
+                conversationId: selectedConversation._id,
+                userId: currentUserId,
+            });
+            setIsTyping(false);
+        }
+
+        const result = await dispatch(
             sendMessage({
                 conversationId: selectedConversation._id,
-                text: text.trim(),
+                text: messageText,
             })
         );
-        setText("");
+
+        if (result.meta.requestStatus === "fulfilled" && socket) {
+            socket.emit("sendMessage", result.payload);
+        }
     };
 
     const handleKeyDown = (e) => {
@@ -55,9 +114,34 @@ const ChatWindow = () => {
         }
     };
 
+    const handleChange = (e) => {
+        setText(e.target.value);
+        if (!socket) return;
+
+        if (!isTyping && e.target.value.trim()) {
+            setIsTyping(true);
+            socket.emit("typing", {
+                conversationId: selectedConversation._id,
+                userId: currentUserId,
+                username: user.username,
+            });
+        }
+
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => {
+            if (isTyping) {
+                socket.emit("stopTyping", {
+                    conversationId: selectedConversation._id,
+                    userId: currentUserId,
+                });
+                setIsTyping(false);
+            }
+        }, 1500);
+    };
+
     return (
         <main style={styles.window}>
-            {/* Chat Header */}
+            {/* Header */}
             <div style={styles.chatHeader}>
                 <div style={styles.headerAvatar}>
                     {otherUser?.name?.charAt(0).toUpperCase()}
@@ -65,7 +149,15 @@ const ChatWindow = () => {
                 </div>
                 <div style={styles.headerInfo}>
                     <div style={styles.headerName}>{otherUser?.name}</div>
-                    <div style={styles.headerStatus}>🟢 Online</div>
+                    <div style={styles.headerStatus}>
+                        {otherUserTyping ? (
+                            <span style={styles.typingStatus}>
+                                {otherUser?.name} is typing...
+                            </span>
+                        ) : (
+                            "🟢 Online"
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -77,7 +169,7 @@ const ChatWindow = () => {
                     </div>
                 ) : (
                     messages.map((msg) => {
-                        const isOwn = msg.sender?._id === user._id;
+                        const isOwn = isOwnMessage(msg);
                         return (
                             <div
                                 key={msg._id}
@@ -128,7 +220,7 @@ const ChatWindow = () => {
                         type="text"
                         placeholder="Type a message..."
                         value={text}
-                        onChange={(e) => setText(e.target.value)}
+                        onChange={handleChange}
                         onKeyDown={handleKeyDown}
                         style={styles.messageInput}
                         autoFocus
@@ -235,6 +327,7 @@ const styles = {
     headerInfo: { flex: 1 },
     headerName: { fontSize: "15px", fontWeight: "600", color: "#1a1a1a" },
     headerStatus: { fontSize: "12px", color: "#22c55e", marginTop: "2px" },
+    typingStatus: { color: "#4d6bfe", fontStyle: "italic" },
     messagesArea: {
         flex: 1,
         overflowY: "auto",

@@ -78,7 +78,7 @@ export const fetchMessages = createAsyncThunk(
     }
 );
 
-// Send a message
+// Send a message (REST API — socket ko ChatWindow emit karega)
 export const sendMessage = createAsyncThunk(
     "chat/sendMessage",
     async ({ conversationId, text }, thunkAPI) => {
@@ -116,10 +116,18 @@ const chatSlice = createSlice({
             state.isError = false;
             state.message = "";
         },
+        // 🔥 Socket se aaya message Redux mein add karne ke liye
+        addIncomingMessage: (state, action) => {
+            const incoming = action.payload;
+            // Check if message already exists (avoid duplicates)
+            const exists = state.messages.some((m) => m._id === incoming._id);
+            if (!exists) {
+                state.messages.push(incoming);
+            }
+        },
     },
     extraReducers: (builder) => {
         builder
-            // Fetch users
             .addCase(fetchUsers.pending, (state) => {
                 state.isLoading = true;
             })
@@ -132,11 +140,9 @@ const chatSlice = createSlice({
                 state.isError = true;
                 state.message = action.payload;
             })
-            // Search users
             .addCase(searchUsers.fulfilled, (state, action) => {
                 state.users = action.payload;
             })
-            // Create conversation
             .addCase(createConversation.pending, (state) => {
                 state.isLoading = true;
             })
@@ -149,17 +155,18 @@ const chatSlice = createSlice({
                 state.isError = true;
                 state.message = action.payload;
             })
-            // Fetch messages
             .addCase(fetchMessages.fulfilled, (state, action) => {
                 state.messages = action.payload;
             })
-            // Send message
             .addCase(sendMessage.pending, (state) => {
                 state.isSending = true;
             })
             .addCase(sendMessage.fulfilled, (state, action) => {
                 state.isSending = false;
-                state.messages.push(action.payload);
+                const exists = state.messages.some((m) => m._id === action.payload._id);
+                if (!exists) {
+                    state.messages.push(action.payload);
+                }
             })
             .addCase(sendMessage.rejected, (state, action) => {
                 state.isSending = false;
@@ -173,5 +180,6 @@ export const {
     setSelectedConversation,
     clearSelectedConversation,
     resetChat,
+    addIncomingMessage,
 } = chatSlice.actions;
 export default chatSlice.reducer;

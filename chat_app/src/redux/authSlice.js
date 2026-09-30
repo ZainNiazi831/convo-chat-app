@@ -51,6 +51,8 @@ export const logout = createAsyncThunk("auth/logout", async (_, thunkAPI) => {
         localStorage.removeItem("userInfo");
         return null;
     } catch (error) {
+        // Even if API fails, clear localStorage to prevent stale session
+        localStorage.removeItem("userInfo");
         const message =
             error.response?.data?.message || error.message || "Logout failed";
         return thunkAPI.rejectWithValue(message);
