@@ -6,13 +6,14 @@ const initialState = {
     conversations: [],
     messages: [],
     selectedConversation: null,
+    unreadCounts: {}, // { senderId: count }
     isLoading: false,
     isSending: false,
     isError: false,
     message: "",
+    showSidebarOnMobile: true,
 };
 
-// Fetch all users
 export const fetchUsers = createAsyncThunk(
     "chat/fetchUsers",
     async (_, thunkAPI) => {
@@ -29,7 +30,6 @@ export const fetchUsers = createAsyncThunk(
     }
 );
 
-// Search users
 export const searchUsers = createAsyncThunk(
     "chat/searchUsers",
     async (query, thunkAPI) => {
@@ -44,7 +44,6 @@ export const searchUsers = createAsyncThunk(
     }
 );
 
-// Create or get private conversation
 export const createConversation = createAsyncThunk(
     "chat/createConversation",
     async (userId, thunkAPI) => {
@@ -61,7 +60,6 @@ export const createConversation = createAsyncThunk(
     }
 );
 
-// Fetch messages of a conversation
 export const fetchMessages = createAsyncThunk(
     "chat/fetchMessages",
     async (conversationId, thunkAPI) => {
@@ -78,7 +76,6 @@ export const fetchMessages = createAsyncThunk(
     }
 );
 
-// Send a message (REST API — socket ko ChatWindow emit karega)
 export const sendMessage = createAsyncThunk(
     "chat/sendMessage",
     async ({ conversationId, text }, thunkAPI) => {
@@ -95,34 +92,81 @@ export const sendMessage = createAsyncThunk(
     }
 );
 
+export const markConversationRead = createAsyncThunk(
+    "chat/markConversationRead",
+    async ({ conversationId, otherUserId }, thunkAPI) => {
+        try {
+            await API.put(`/messages/${conversationId}/read`);
+            return otherUserId;
+        } catch (error) {
+            const message =
+                error.response?.data?.message ||
+                error.message ||
+                "Failed to mark as read";
+            return thunkAPI.rejectWithValue(message);
+        }
+    }
+);
+
 const chatSlice = createSlice({
     name: "chat",
     initialState,
     reducers: {
         setSelectedConversation: (state, action) => {
             state.selectedConversation = action.payload;
+            state.showSidebarOnMobile = false;
         },
         clearSelectedConversation: (state) => {
             state.selectedConversation = null;
             state.messages = [];
+            state.showSidebarOnMobile = true;
+        },
+        showMobileSidebar: (state) => {
+            state.showSidebarOnMobile = true;
         },
         resetChat: (state) => {
             state.users = [];
             state.conversations = [];
             state.messages = [];
             state.selectedConversation = null;
+            state.unreadCounts = {};
             state.isLoading = false;
             state.isSending = false;
             state.isError = false;
             state.message = "";
+            state.showSidebarOnMobile = true;
         },
-        // 🔥 Socket se aaya message Redux mein add karne ke liye
+        // 🔥 ROBUST: Compare conversation IDs directly
         addIncomingMessage: (state, action) => {
             const incoming = action.payload;
-            // Check if message already exists (avoid duplicates)
+            const senderId =
+                typeof incoming.sender === "object"
+                    ? incoming.sender?._id
+                    : incoming.sender;
+
+            // Add message to messages array (for the currently open conversation)
             const exists = state.messages.some((m) => m._id === incoming._id);
             if (!exists) {
                 state.messages.push(incoming);
+            }
+
+            if (!senderId) return;
+
+            // 🔑 The KEY check: is this conversation currently open?
+            const currentConvId = state.selectedConversation?._id;
+            const isCurrentConversationOpen =
+                currentConvId &&
+                String(currentConvId) === String(incoming.conversation);
+
+            // Only increment unread if the conversation is NOT currently open
+            if (!isCurrentConversationOpen) {
+                state.unreadCounts[senderId] = (state.unreadCounts[senderId] || 0) + 1;
+            }
+        },
+        clearUnreadForUser: (state, action) => {
+            const userId = action.payload;
+            if (userId && state.unreadCounts[userId]) {
+                delete state.unreadCounts[userId];
             }
         },
     },
@@ -149,6 +193,7 @@ const chatSlice = createSlice({
             .addCase(createConversation.fulfilled, (state, action) => {
                 state.isLoading = false;
                 state.selectedConversation = action.payload;
+                state.showSidebarOnMobile = false;
             })
             .addCase(createConversation.rejected, (state, action) => {
                 state.isLoading = false;
@@ -172,6 +217,12 @@ const chatSlice = createSlice({
                 state.isSending = false;
                 state.isError = true;
                 state.message = action.payload;
+            })
+            .addCase(markConversationRead.fulfilled, (state, action) => {
+                const otherUserId = action.payload;
+                if (otherUserId) {
+                    delete state.unreadCounts[otherUserId];
+                }
             });
     },
 });
@@ -181,5 +232,7 @@ export const {
     clearSelectedConversation,
     resetChat,
     addIncomingMessage,
+    showMobileSidebar,
+    clearUnreadForUser,
 } = chatSlice.actions;
 export default chatSlice.reducer;

@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { Search, PlusCircle, LogOut } from "lucide-react";
 import { logout } from "../redux/authSlice";
 import {
     fetchUsers,
     searchUsers,
     createConversation,
     fetchMessages,
+    markConversationRead,
+    clearUnreadForUser,
     resetChat,
 } from "../redux/chatSlice";
 
@@ -14,10 +17,15 @@ const Sidebar = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const { user } = useSelector((state) => state.auth);
-    const { users, isLoading } = useSelector((state) => state.chat);
+    const { users, isLoading, unreadCounts } = useSelector((state) => state.chat);
     const [searchTerm, setSearchTerm] = useState("");
     const [hoveredId, setHoveredId] = useState(null);
     const [activeUserId, setActiveUserId] = useState(null);
+
+    // 🔍 Debug: log unreadCounts on every change
+    useEffect(() => {
+        console.log("📊 unreadCounts:", unreadCounts);
+    }, [unreadCounts]);
 
     useEffect(() => {
         dispatch(fetchUsers());
@@ -44,49 +52,36 @@ const Sidebar = () => {
         setActiveUserId(clickedUser._id);
         const result = await dispatch(createConversation(clickedUser._id));
         if (result.meta.requestStatus === "fulfilled") {
-            dispatch(fetchMessages(result.payload._id));
+            const conv = result.payload;
+            dispatch(fetchMessages(conv._id));
+
+            // 🔑 Clear badge for this user (both API and local state)
+            if (unreadCounts[clickedUser._id]) {
+                dispatch(
+                    markConversationRead({
+                        conversationId: conv._id,
+                        otherUserId: clickedUser._id,
+                    })
+                );
+                dispatch(clearUnreadForUser(clickedUser._id));
+            }
         }
     };
 
     return (
         <aside style={styles.sidebar}>
-            {/* Header — logo LEFT, search RIGHT */}
+            {/* Header */}
             <div style={styles.header}>
                 <img src="/logo.png" alt="Logo" style={styles.brandLogo} />
                 <button style={styles.iconBtn} title="Search">
-                    <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="#6b7280"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    >
-                        <circle cx="11" cy="11" r="8" />
-                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
+                    <Search size={20} color="#6b7280" strokeWidth={2} />
                 </button>
             </div>
 
             {/* New Chat */}
             <div style={styles.newChatWrapper}>
                 <button style={styles.newChatBtn}>
-                    <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    >
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="12" y1="8" x2="12" y2="16" />
-                        <line x1="8" y1="12" x2="16" y2="12" />
-                    </svg>
+                    <PlusCircle size={18} strokeWidth={2} />
                     New chat
                 </button>
             </div>
@@ -96,20 +91,12 @@ const Sidebar = () => {
             {/* Search */}
             <div style={styles.searchWrapper}>
                 <div style={styles.searchBox}>
-                    <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="#9ca3af"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                    <Search
+                        size={16}
+                        color="#9ca3af"
+                        strokeWidth={2}
                         style={styles.searchIcon}
-                    >
-                        <circle cx="11" cy="11" r="8" />
-                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
+                    />
                     <input
                         type="text"
                         placeholder="Search users..."
@@ -135,6 +122,8 @@ const Sidebar = () => {
                 {users.map((u) => {
                     const isActive = activeUserId === u._id;
                     const isHovered = hoveredId === u._id;
+                    const unreadCount = unreadCounts[u._id] || 0;
+
                     return (
                         <div
                             key={u._id}
@@ -167,6 +156,11 @@ const Sidebar = () => {
                                 </div>
                                 <div style={styles.itemUsername}>@{u.username}</div>
                             </div>
+                            {unreadCount > 0 && (
+                                <div style={styles.badge}>
+                                    {unreadCount > 99 ? "99+" : unreadCount}
+                                </div>
+                            )}
                         </div>
                     );
                 })}
@@ -177,27 +171,13 @@ const Sidebar = () => {
                 <div style={styles.profileCard}>
                     <div style={styles.avatar}>
                         {user?.name?.charAt(0).toUpperCase()}
-                        <span style={styles.onlineDot} />
                     </div>
                     <div style={styles.userInfo}>
                         <div style={styles.userName}>{user?.name}</div>
                         <div style={styles.userUsername}>@{user?.username}</div>
                     </div>
                     <button onClick={handleLogout} style={styles.logoutBtn} title="Logout">
-                        <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        >
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                            <polyline points="16 17 21 12 16 7" />
-                            <line x1="21" y1="12" x2="9" y2="12" />
-                        </svg>
+                        <LogOut size={16} strokeWidth={2} />
                     </button>
                 </div>
             </div>
@@ -207,12 +187,11 @@ const Sidebar = () => {
 
 const styles = {
     sidebar: {
-        width: "300px",
-        height: "100vh",
+        width: "100%",
+        height: "100%",
         background: "#ffffff",
         display: "flex",
         flexDirection: "column",
-        borderRight: "1px solid #e5e7eb",
         flexShrink: 0,
     },
     header: {
@@ -227,7 +206,6 @@ const styles = {
         height: "auto",
         maxHeight: "60px",
         objectFit: "contain",
-        marginLeft: "0px",
     },
     iconBtn: {
         background: "transparent",
@@ -239,7 +217,6 @@ const styles = {
         justifyContent: "center",
         cursor: "pointer",
         flexShrink: 0,
-        marginRight: "0px",
     },
     newChatWrapper: { padding: "12px 16px 12px 16px" },
     newChatBtn: {
@@ -323,6 +300,21 @@ const styles = {
         overflow: "hidden",
         textOverflow: "ellipsis",
     },
+    badge: {
+        background: "#4d6bfe",
+        color: "#fff",
+        fontSize: "11px",
+        fontWeight: "700",
+        minWidth: "20px",
+        height: "20px",
+        padding: "0 7px",
+        borderRadius: "10px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        boxShadow: "0 2px 6px rgba(77,107,254,0.4)",
+    },
     bottomProfile: { padding: "12px", borderTop: "1px solid #e5e7eb" },
     profileCard: {
         display: "flex",
@@ -333,7 +325,6 @@ const styles = {
         background: "#f9fafb",
     },
     avatar: {
-        position: "relative",
         width: "34px",
         height: "34px",
         borderRadius: "50%",
@@ -345,16 +336,6 @@ const styles = {
         fontWeight: "600",
         fontSize: "13px",
         flexShrink: 0,
-    },
-    onlineDot: {
-        position: "absolute",
-        bottom: 0,
-        right: 0,
-        width: "10px",
-        height: "10px",
-        borderRadius: "50%",
-        background: "#22c55e",
-        border: "2px solid #f9fafb",
     },
     userInfo: { flex: 1, minWidth: 0 },
     userName: {

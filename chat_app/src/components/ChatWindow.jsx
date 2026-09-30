@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { sendMessage } from "../redux/chatSlice";
+import { ArrowLeft, Send, MessageCircle } from "lucide-react";
+import { sendMessage, showMobileSidebar } from "../redux/chatSlice";
 import { useSocket } from "../context/SocketContext";
+import useIsMobile from "../hooks/useIsMobile";
 
 const ChatWindow = () => {
     const dispatch = useDispatch();
     const { socket } = useSocket();
+    const isMobile = useIsMobile();
     const { selectedConversation, messages, isSending } = useSelector(
         (state) => state.chat
     );
@@ -16,12 +19,10 @@ const ChatWindow = () => {
     const messagesEndRef = useRef(null);
     const typingTimeoutRef = useRef(null);
 
-    // Auto-scroll
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    // Listen for typing events
     useEffect(() => {
         if (!socket || !user) return;
 
@@ -53,9 +54,9 @@ const ChatWindow = () => {
             <main style={styles.window}>
                 <div style={styles.emptyState}>
                     <div style={styles.iconWrapper}>
-                        <img src="/convo-logo.png" alt="NauChat" style={styles.logoImg} />
+                        <img src="/convo-logo.png" alt="Convo" style={styles.logoImg} />
                     </div>
-                    <h2 style={styles.title}>Welcome to NauChat</h2>
+                    <h2 style={styles.title}>Welcome to Convo</h2>
                     <p style={styles.subtitle}>
                         Select a user from the sidebar to start a conversation
                     </p>
@@ -70,7 +71,6 @@ const ChatWindow = () => {
         (m) => String(m._id) !== String(currentUserId)
     );
 
-    // 🔥 ULTRA robust — handles string, object, _id, id — all cases
     const isOwnMessage = (msg) => {
         if (!msg.sender) return false;
         const senderId =
@@ -143,9 +143,17 @@ const ChatWindow = () => {
         <main style={styles.window}>
             {/* Header */}
             <div style={styles.chatHeader}>
+                {isMobile && (
+                    <button
+                        onClick={() => dispatch(showMobileSidebar())}
+                        style={styles.backBtn}
+                        title="Back"
+                    >
+                        <ArrowLeft size={22} strokeWidth={2} />
+                    </button>
+                )}
                 <div style={styles.headerAvatar}>
                     {otherUser?.name?.charAt(0).toUpperCase()}
-                    <span style={styles.headerOnlineDot} />
                 </div>
                 <div style={styles.headerInfo}>
                     <div style={styles.headerName}>{otherUser?.name}</div>
@@ -155,7 +163,7 @@ const ChatWindow = () => {
                                 {otherUser?.name} is typing...
                             </span>
                         ) : (
-                            "🟢 Online"
+                            "Online"
                         )}
                     </div>
                 </div>
@@ -234,19 +242,7 @@ const ChatWindow = () => {
                         }}
                         disabled={!text.trim() || isSending}
                     >
-                        <svg
-                            width="18"
-                            height="18"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        >
-                            <line x1="22" y1="2" x2="11" y2="13" />
-                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                        </svg>
+                        <Send size={18} strokeWidth={2} />
                     </button>
                 </div>
             </div>
@@ -293,15 +289,27 @@ const styles = {
     },
     subtitle: { color: "#64748b", fontSize: "15px", lineHeight: "1.6" },
     chatHeader: {
-        padding: "16px 24px",
+        padding: "12px 20px",
         background: "#ffffff",
         borderBottom: "1px solid #e5e7eb",
         display: "flex",
         alignItems: "center",
         gap: "12px",
     },
+    backBtn: {
+        background: "transparent",
+        border: "none",
+        padding: "6px",
+        borderRadius: "8px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        color: "#4d6bfe",
+        flexShrink: 0,
+        marginRight: "4px",
+    },
     headerAvatar: {
-        position: "relative",
         width: "42px",
         height: "42px",
         borderRadius: "50%",
@@ -314,16 +322,6 @@ const styles = {
         fontSize: "16px",
         flexShrink: 0,
     },
-    headerOnlineDot: {
-        position: "absolute",
-        bottom: 0,
-        right: 0,
-        width: "12px",
-        height: "12px",
-        borderRadius: "50%",
-        background: "#22c55e",
-        border: "2px solid #ffffff",
-    },
     headerInfo: { flex: 1 },
     headerName: { fontSize: "15px", fontWeight: "600", color: "#1a1a1a" },
     headerStatus: { fontSize: "12px", color: "#22c55e", marginTop: "2px" },
@@ -331,7 +329,7 @@ const styles = {
     messagesArea: {
         flex: 1,
         overflowY: "auto",
-        padding: "24px",
+        padding: "20px",
         display: "flex",
         flexDirection: "column",
         gap: "10px",
@@ -346,7 +344,7 @@ const styles = {
     },
     messageRow: { display: "flex", width: "100%" },
     bubble: {
-        maxWidth: "60%",
+        maxWidth: "70%",
         padding: "10px 14px",
         fontSize: "14px",
         lineHeight: "1.5",
@@ -354,7 +352,7 @@ const styles = {
     },
     time: { fontSize: "10px", marginTop: "4px", textAlign: "right" },
     inputArea: {
-        padding: "16px 24px",
+        padding: "12px 16px",
         background: "#ffffff",
         borderTop: "1px solid #e5e7eb",
     },
@@ -365,7 +363,7 @@ const styles = {
         background: "#f9fafb",
         border: "1px solid #e5e7eb",
         borderRadius: "24px",
-        padding: "6px 6px 6px 20px",
+        padding: "6px 6px 6px 18px",
     },
     messageInput: {
         flex: 1,

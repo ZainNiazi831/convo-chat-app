@@ -16,12 +16,12 @@ export const SocketProvider = ({ children }) => {
     const socketRef = useRef(null);
     const selectedConvRef = useRef(selectedConversation);
 
-    // Keep a fresh ref to selectedConversation for socket handler
+    // Keep fresh ref of selectedConversation
     useEffect(() => {
         selectedConvRef.current = selectedConversation;
     }, [selectedConversation]);
 
-    // 🔌 Socket connect (once per user)
+    // 🔌 Connect socket when user logs in
     useEffect(() => {
         if (!user) {
             if (socketRef.current) {
@@ -58,46 +58,33 @@ export const SocketProvider = ({ children }) => {
         };
     }, [user]);
 
-    // 📨 Handle incoming real-time messages
+    // 📨 Handle incoming messages
     useEffect(() => {
         if (!socket || !user) return;
 
         const handleReceive = (message) => {
-            console.log("📥 [SOCKET RECEIVE]", message);
-
-            // Normalize sender ID
             const senderId =
                 typeof message.sender === "object"
                     ? message.sender?._id
                     : message.sender;
 
             const currentUserId = user._id || user.id;
+            if (String(senderId) === String(currentUserId)) return;
 
-            // ⏭ Skip own messages (they come from REST response already)
-            if (String(senderId) === String(currentUserId)) {
-                console.log("   ⏭ Own message, skipping");
-                return;
-            }
+            dispatch(addIncomingMessage(message));
 
-            // Only add if message belongs to currently open conversation
+            // Play sound if not in current conversation
             const currentConvId = selectedConvRef.current?._id;
-            if (currentConvId && String(message.conversation) === String(currentConvId)) {
-                dispatch(addIncomingMessage(message));
-            } else {
-                console.log("   ⚠ Message not for current conversation, ignoring UI");
-            }
+            const isCurrentConv =
+                currentConvId && String(message.conversation) === String(currentConvId);
 
-            // 🔊 Notification sound if not viewing that conversation
-            if (
-                !selectedConvRef.current ||
-                String(selectedConvRef.current._id) !== String(message.conversation)
-            ) {
+            if (!isCurrentConv) {
                 try {
                     const audio = new Audio("/notification.mp3");
                     audio.volume = 0.5;
                     audio.play().catch(() => { });
                 } catch (err) {
-                    console.log("Sound error:", err.message);
+                    // Silent fail
                 }
             }
         };
@@ -109,15 +96,13 @@ export const SocketProvider = ({ children }) => {
         };
     }, [socket, dispatch, user]);
 
-    // 🚪 Auto-join/leave conversation room
+    // 🚪 Join/leave conversation room
     useEffect(() => {
         if (!socket || !selectedConversation) return;
 
-        console.log("🚪 Joining room:", selectedConversation._id);
         socket.emit("joinConversation", selectedConversation._id);
 
         return () => {
-            console.log("🚪 Leaving room:", selectedConversation._id);
             socket.emit("leaveConversation", selectedConversation._id);
         };
     }, [socket, selectedConversation]);
