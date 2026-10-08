@@ -16,7 +16,12 @@ const app = express();
 const httpServer = createServer(app);
 
 // Middleware
-app.use(cors({ origin: process.env.CLIENT_URL }));
+app.use(
+    cors({
+        origin: process.env.CLIENT_URL || "http://localhost:5173",
+        credentials: true,
+    })
+);
 app.use(express.json());
 
 // Test route
@@ -39,7 +44,7 @@ initSocket(httpServer);
 
 // Start server
 const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Server running on port ${PORT}`);
     connectDB();
 });
