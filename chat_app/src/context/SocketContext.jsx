@@ -8,6 +8,10 @@ const SocketContext = createContext();
 
 export const useSocket = () => useContext(SocketContext);
 
+// 🔑 Production & Development URLs
+const SOCKET_URL =
+    import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
+
 export const SocketProvider = ({ children }) => {
     const [socket, setSocket] = useState(null);
     const [onlineUsers, setOnlineUsers] = useState([]);
@@ -22,7 +26,7 @@ export const SocketProvider = ({ children }) => {
         selectedConvRef.current = selectedConversation;
     }, [selectedConversation]);
 
-    // 🔌 Connect socket
+    // 🔌 Connect socket when user logs in
     useEffect(() => {
         if (!user) {
             if (socketRef.current) {
@@ -34,7 +38,7 @@ export const SocketProvider = ({ children }) => {
             return;
         }
 
-        const newSocket = io("http://localhost:5000", {
+        const newSocket = io(SOCKET_URL, {
             transports: ["websocket"],
         });
 
@@ -43,6 +47,7 @@ export const SocketProvider = ({ children }) => {
 
         newSocket.on("connect", async () => {
             console.log("✅ Socket connected:", newSocket.id);
+            console.log("🔗 Socket URL:", SOCKET_URL);
             newSocket.emit("userOnline", user._id);
 
             try {
@@ -57,13 +62,11 @@ export const SocketProvider = ({ children }) => {
                 console.error("Failed to join conversations:", err.message);
             }
 
-            // Refresh unread counts on connect
             dispatch(fetchUnreadCounts());
         });
 
         newSocket.on("onlineUsers", (users) => {
             setOnlineUsers(users);
-            // 🔥 Refresh unread counts when users come online/offline
             dispatch(fetchUnreadCounts());
         });
 
@@ -94,22 +97,20 @@ export const SocketProvider = ({ children }) => {
             const currentUserId = user._id || user.id;
             if (String(senderId) === String(currentUserId)) return;
 
-            // Add to Redux
             dispatch(addIncomingMessage(message));
 
-            // Check if current conversation is open
             const currentConvId = selectedConvRef.current?._id;
             const isCurrentConvOpen =
                 currentConvId && String(message.conversation) === String(currentConvId);
 
-            // 🔥 Mark as DELIVERED (we're online, we received it)
+            // Mark as DELIVERED
             socket.emit("messagesDelivered", {
                 conversationId: message.conversation,
                 readerId: currentUserId,
             });
 
             fetch(
-                `http://localhost:5000/api/messages/${message.conversation}/delivered`,
+                `${API.defaults.baseURL}/messages/${message.conversation}/delivered`,
                 {
                     method: "PUT",
                     headers: {
@@ -119,7 +120,7 @@ export const SocketProvider = ({ children }) => {
                 }
             ).catch(() => { });
 
-            // 🔥 If current conversation open, mark as READ
+            // If current conv open, mark READ
             if (isCurrentConvOpen) {
                 socket.emit("messagesRead", {
                     conversationId: message.conversation,
@@ -127,7 +128,7 @@ export const SocketProvider = ({ children }) => {
                 });
 
                 fetch(
-                    `http://localhost:5000/api/messages/${message.conversation}/read`,
+                    `${API.defaults.baseURL}/messages/${message.conversation}/read`,
                     {
                         method: "PUT",
                         headers: {
@@ -137,7 +138,7 @@ export const SocketProvider = ({ children }) => {
                     }
                 ).catch(() => { });
             } else {
-                // Play sound
+                // Play notification sound
                 try {
                     const audio = new Audio("/notification.mp3");
                     audio.volume = 0.5;
@@ -155,7 +156,7 @@ export const SocketProvider = ({ children }) => {
         };
     }, [socket, dispatch, user]);
 
-    // 🎯 When user opens a NEW conversation, join its room + refresh
+    // 🎯 When user opens a NEW conversation, join its room
     useEffect(() => {
         if (!socket || !selectedConversation) return;
 

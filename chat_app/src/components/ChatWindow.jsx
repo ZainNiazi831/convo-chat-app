@@ -8,6 +8,7 @@ import {
 } from "../redux/chatSlice";
 import { useSocket } from "../context/SocketContext";
 import useIsMobile from "../hooks/useIsMobile";
+import API from "../services/api";
 import GroupInfoModal from "./GroupInfoModal";
 import DeleteConfirmModal from "./DeleteConfirmModal";
 
@@ -34,7 +35,7 @@ const ChatWindow = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    // Mark all incoming as delivered when chat opens
+    // Mark all incoming as delivered + read when chat opens
     useEffect(() => {
         if (!selectedConversation || !socket || !user) return;
 
@@ -46,16 +47,13 @@ const ChatWindow = () => {
             readerId: currentUserId,
         });
 
-        fetch(
-            `http://localhost:5000/api/messages/${selectedConversation._id}/delivered`,
-            {
-                method: "PUT",
-                headers: {
-                    Authorization: `Bearer ${JSON.parse(localStorage.getItem("userInfo")).token
-                        }`,
-                },
-            }
-        ).catch(() => { });
+        fetch(`${API.defaults.baseURL}/messages/${selectedConversation._id}/delivered`, {
+            method: "PUT",
+            headers: {
+                Authorization: `Bearer ${JSON.parse(localStorage.getItem("userInfo")).token
+                    }`,
+            },
+        }).catch(() => { });
 
         // Read
         socket.emit("messagesRead", {
@@ -63,16 +61,13 @@ const ChatWindow = () => {
             readerId: currentUserId,
         });
 
-        fetch(
-            `http://localhost:5000/api/messages/${selectedConversation._id}/read`,
-            {
-                method: "PUT",
-                headers: {
-                    Authorization: `Bearer ${JSON.parse(localStorage.getItem("userInfo")).token
-                        }`,
-                },
-            }
-        ).catch(() => { });
+        fetch(`${API.defaults.baseURL}/messages/${selectedConversation._id}/read`, {
+            method: "PUT",
+            headers: {
+                Authorization: `Bearer ${JSON.parse(localStorage.getItem("userInfo")).token
+                    }`,
+            },
+        }).catch(() => { });
     }, [selectedConversation, socket, user]);
 
     // Listen for typing + read + delivered
@@ -277,6 +272,39 @@ const ChatWindow = () => {
         }, 1500);
     };
 
+    const handleRemoveMember = async (memberId) => {
+        if (!window.confirm("Remove this member from the group?")) return;
+
+        try {
+            const response = await fetch(
+                `${API.defaults.baseURL}/conversations/${selectedConversation._id}/remove-member`,
+                {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${JSON.parse(localStorage.getItem("userInfo")).token
+                            }`,
+                    },
+                    body: JSON.stringify({ memberId }),
+                }
+            );
+
+            if (response.ok) {
+                const updatedGroup = await response.json();
+                dispatch({
+                    type: "chat/setSelectedConversation",
+                    payload: updatedGroup,
+                });
+                window.location.reload();
+            } else {
+                const err = await response.json();
+                alert(err.message || "Failed to remove member");
+            }
+        } catch (err) {
+            alert("Network error");
+        }
+    };
+
     return (
         <main style={styles.window}>
             {/* Chat Header */}
@@ -437,9 +465,7 @@ const ChatWindow = () => {
                 <GroupInfoModal
                     group={selectedConversation}
                     onClose={() => setShowGroupInfo(false)}
-                    onRemoveMember={(memberId) => {
-                        console.log("Remove member:", memberId);
-                    }}
+                    onRemoveMember={handleRemoveMember}
                 />
             )}
 
