@@ -6,7 +6,7 @@ const initialState = {
     conversations: [],
     messages: [],
     selectedConversation: null,
-    unreadCounts: {}, // { senderId: count }
+    unreadCounts: {},
     isLoading: false,
     isSending: false,
     isError: false,
@@ -14,6 +14,7 @@ const initialState = {
     showSidebarOnMobile: true,
 };
 
+// ─── FETCH USERS ───
 export const fetchUsers = createAsyncThunk(
     "chat/fetchUsers",
     async (_, thunkAPI) => {
@@ -30,6 +31,7 @@ export const fetchUsers = createAsyncThunk(
     }
 );
 
+// ─── SEARCH USERS ───
 export const searchUsers = createAsyncThunk(
     "chat/searchUsers",
     async (query, thunkAPI) => {
@@ -44,6 +46,7 @@ export const searchUsers = createAsyncThunk(
     }
 );
 
+// ─── CREATE PRIVATE CONVERSATION ───
 export const createConversation = createAsyncThunk(
     "chat/createConversation",
     async (userId, thunkAPI) => {
@@ -60,6 +63,28 @@ export const createConversation = createAsyncThunk(
     }
 );
 
+// ─── CREATE GROUP CONVERSATION ───
+export const createGroupConversation = createAsyncThunk(
+    "chat/createGroupConversation",
+    async ({ name, members }, thunkAPI) => {
+        try {
+            const response = await API.post("/conversations", {
+                isGroup: true,
+                name,
+                members,
+            });
+            return response.data;
+        } catch (error) {
+            const message =
+                error.response?.data?.message ||
+                error.message ||
+                "Failed to create group";
+            return thunkAPI.rejectWithValue(message);
+        }
+    }
+);
+
+// ─── FETCH MESSAGES ───
 export const fetchMessages = createAsyncThunk(
     "chat/fetchMessages",
     async (conversationId, thunkAPI) => {
@@ -76,6 +101,7 @@ export const fetchMessages = createAsyncThunk(
     }
 );
 
+// ─── SEND MESSAGE ───
 export const sendMessage = createAsyncThunk(
     "chat/sendMessage",
     async ({ conversationId, text }, thunkAPI) => {
@@ -92,6 +118,41 @@ export const sendMessage = createAsyncThunk(
     }
 );
 
+// ─── FETCH UNREAD COUNTS ───
+export const fetchUnreadCounts = createAsyncThunk(
+    "chat/fetchUnreadCounts",
+    async (_, thunkAPI) => {
+        try {
+            const response = await API.get("/messages/unread/counts");
+            return response.data;
+        } catch (error) {
+            const message =
+                error.response?.data?.message ||
+                error.message ||
+                "Failed to load unread counts";
+            return thunkAPI.rejectWithValue(message);
+        }
+    }
+);
+
+// ─── DELETE CONVERSATION ───
+export const deleteConversationThunk = createAsyncThunk(
+    "chat/deleteConversation",
+    async (conversationId, thunkAPI) => {
+        try {
+            await API.delete(`/conversations/${conversationId}`);
+            return conversationId;
+        } catch (error) {
+            const message =
+                error.response?.data?.message ||
+                error.message ||
+                "Failed to delete conversation";
+            return thunkAPI.rejectWithValue(message);
+        }
+    }
+);
+
+// ─── MARK AS READ ───
 export const markConversationRead = createAsyncThunk(
     "chat/markConversationRead",
     async ({ conversationId, otherUserId }, thunkAPI) => {
@@ -108,6 +169,7 @@ export const markConversationRead = createAsyncThunk(
     }
 );
 
+// ─── FETCH CONVERSATIONS ───
 export const fetchConversations = createAsyncThunk(
     "chat/fetchConversations",
     async (_, thunkAPI) => {
@@ -152,42 +214,25 @@ const chatSlice = createSlice({
             state.message = "";
             state.showSidebarOnMobile = true;
         },
-        // 🔥 WhatsApp-style unread count
         addIncomingMessage: (state, action) => {
             const incoming = action.payload;
-
             const senderId =
                 typeof incoming.sender === "object"
                     ? incoming.sender?._id
                     : incoming.sender;
+            if (!senderId) return;
 
-            if (!senderId) {
-                console.log("❌ No sender ID in incoming message");
-                return;
-            }
-
-            // Add message (dedupe)
             const exists = state.messages.some((m) => m._id === incoming._id);
             if (!exists) {
                 state.messages.push(incoming);
             }
 
-            // Check if conversation is currently open
             const currentConvId = state.selectedConversation?._id;
             const isConversationOpen =
                 currentConvId && String(currentConvId) === String(incoming.conversation);
 
-            console.log("🔍 addIncomingMessage:", {
-                senderId,
-                incomingConv: incoming.conversation,
-                currentConv: currentConvId,
-                isOpen: isConversationOpen,
-            });
-
-            // Increment unread ONLY if conversation is NOT open
             if (!isConversationOpen) {
                 state.unreadCounts[senderId] = (state.unreadCounts[senderId] || 0) + 1;
-                console.log("📊 New unreadCounts:", { ...state.unreadCounts });
             }
         },
         clearUnreadForUser: (state, action) => {
@@ -199,6 +244,7 @@ const chatSlice = createSlice({
     },
     extraReducers: (builder) => {
         builder
+            // Fetch users
             .addCase(fetchUsers.pending, (state) => {
                 state.isLoading = true;
             })
@@ -211,9 +257,11 @@ const chatSlice = createSlice({
                 state.isError = true;
                 state.message = action.payload;
             })
+            // Search
             .addCase(searchUsers.fulfilled, (state, action) => {
                 state.users = action.payload;
             })
+            // Create private
             .addCase(createConversation.pending, (state) => {
                 state.isLoading = true;
             })
@@ -227,9 +275,26 @@ const chatSlice = createSlice({
                 state.isError = true;
                 state.message = action.payload;
             })
+            // Create group
+            .addCase(createGroupConversation.pending, (state) => {
+                state.isLoading = true;
+            })
+            .addCase(createGroupConversation.fulfilled, (state, action) => {
+                state.isLoading = false;
+                state.selectedConversation = action.payload;
+                state.showSidebarOnMobile = false;
+                state.conversations.unshift(action.payload);
+            })
+            .addCase(createGroupConversation.rejected, (state, action) => {
+                state.isLoading = false;
+                state.isError = true;
+                state.message = action.payload;
+            })
+            // Fetch messages
             .addCase(fetchMessages.fulfilled, (state, action) => {
                 state.messages = action.payload;
             })
+            // Send message
             .addCase(sendMessage.pending, (state) => {
                 state.isSending = true;
             })
@@ -245,12 +310,30 @@ const chatSlice = createSlice({
                 state.isError = true;
                 state.message = action.payload;
             })
+            // Fetch unread counts
+            .addCase(fetchUnreadCounts.fulfilled, (state, action) => {
+                state.unreadCounts = action.payload;
+            })
+            // Delete conversation
+            .addCase(deleteConversationThunk.fulfilled, (state, action) => {
+                const deletedId = action.payload;
+                state.conversations = state.conversations.filter(
+                    (c) => c._id !== deletedId
+                );
+                if (state.selectedConversation?._id === deletedId) {
+                    state.selectedConversation = null;
+                    state.messages = [];
+                    state.showSidebarOnMobile = true;
+                }
+            })
+            // Mark as read
             .addCase(markConversationRead.fulfilled, (state, action) => {
                 const otherUserId = action.payload;
                 if (otherUserId) {
                     delete state.unreadCounts[otherUserId];
                 }
             })
+            // Fetch conversations
             .addCase(fetchConversations.fulfilled, (state, action) => {
                 state.conversations = action.payload;
             });
@@ -265,4 +348,5 @@ export const {
     showMobileSidebar,
     clearUnreadForUser,
 } = chatSlice.actions;
+
 export default chatSlice.reducer;

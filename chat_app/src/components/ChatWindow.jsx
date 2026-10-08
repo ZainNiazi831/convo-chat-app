@@ -1,9 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { ArrowLeft, Send, MessageCircle } from "lucide-react";
-import { sendMessage, showMobileSidebar } from "../redux/chatSlice";
+import { ArrowLeft, Send, Users, Trash2, Check, CheckCheck } from "lucide-react";
+import {
+    sendMessage,
+    showMobileSidebar,
+    deleteConversationThunk,
+} from "../redux/chatSlice";
 import { useSocket } from "../context/SocketContext";
 import useIsMobile from "../hooks/useIsMobile";
+import GroupInfoModal from "./GroupInfoModal";
+import DeleteConfirmModal from "./DeleteConfirmModal";
 
 const ChatWindow = () => {
     const dispatch = useDispatch();
@@ -16,13 +22,60 @@ const ChatWindow = () => {
     const [text, setText] = useState("");
     const [isTyping, setIsTyping] = useState(false);
     const [otherUserTyping, setOtherUserTyping] = useState(false);
+    const [showGroupInfo, setShowGroupInfo] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [readMessages, setReadMessages] = useState(new Set());
+    const [deliveredMessages, setDeliveredMessages] = useState(new Set());
     const messagesEndRef = useRef(null);
     const typingTimeoutRef = useRef(null);
 
+    // Auto-scroll
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
+    // Mark all incoming as delivered when chat opens
+    useEffect(() => {
+        if (!selectedConversation || !socket || !user) return;
+
+        const currentUserId = user._id || user.id;
+
+        // Delivered
+        socket.emit("messagesDelivered", {
+            conversationId: selectedConversation._id,
+            readerId: currentUserId,
+        });
+
+        fetch(
+            `http://localhost:5000/api/messages/${selectedConversation._id}/delivered`,
+            {
+                method: "PUT",
+                headers: {
+                    Authorization: `Bearer ${JSON.parse(localStorage.getItem("userInfo")).token
+                        }`,
+                },
+            }
+        ).catch(() => { });
+
+        // Read
+        socket.emit("messagesRead", {
+            conversationId: selectedConversation._id,
+            readerId: currentUserId,
+        });
+
+        fetch(
+            `http://localhost:5000/api/messages/${selectedConversation._id}/read`,
+            {
+                method: "PUT",
+                headers: {
+                    Authorization: `Bearer ${JSON.parse(localStorage.getItem("userInfo")).token
+                        }`,
+                },
+            }
+        ).catch(() => { });
+    }, [selectedConversation, socket, user]);
+
+    // Listen for typing + read + delivered
     useEffect(() => {
         if (!socket || !user) return;
 
@@ -36,14 +89,47 @@ const ChatWindow = () => {
             if (String(userId) !== String(currentUserId)) setOtherUserTyping(false);
         };
 
+        const handleMessagesRead = ({ conversationId }) => {
+            if (conversationId !== selectedConversation?._id) return;
+            const ownIds = messages
+                .filter((m) => {
+                    const sid =
+                        typeof m.sender === "object" ? m.sender?._id : m.sender;
+                    return String(sid) === String(user._id || user.id);
+                })
+                .map((m) => m._id);
+            setReadMessages(new Set(ownIds));
+        };
+
+        const handleMessagesDelivered = ({ conversationId, messageId }) => {
+            if (conversationId !== selectedConversation?._id) return;
+
+            if (messageId) {
+                setDeliveredMessages((prev) => new Set(prev).add(messageId));
+            } else {
+                const ownIds = messages
+                    .filter((m) => {
+                        const sid =
+                            typeof m.sender === "object" ? m.sender?._id : m.sender;
+                        return String(sid) === String(user._id || user.id);
+                    })
+                    .map((m) => m._id);
+                setDeliveredMessages(new Set(ownIds));
+            }
+        };
+
         socket.on("userTyping", handleUserTyping);
         socket.on("userStoppedTyping", handleUserStoppedTyping);
+        socket.on("messagesRead", handleMessagesRead);
+        socket.on("messagesDelivered", handleMessagesDelivered);
 
         return () => {
             socket.off("userTyping", handleUserTyping);
             socket.off("userStoppedTyping", handleUserStoppedTyping);
+            socket.off("messagesRead", handleMessagesRead);
+            socket.off("messagesDelivered", handleMessagesDelivered);
         };
-    }, [socket, user]);
+    }, [socket, user, selectedConversation, messages]);
 
     useEffect(() => {
         setOtherUserTyping(false);
@@ -66,10 +152,21 @@ const ChatWindow = () => {
     }
 
     const currentUserId = user?._id || user?.id;
+    const isGroup = selectedConversation.type === "group";
 
-    const otherUser = selectedConversation.members?.find(
-        (m) => String(m._id) !== String(currentUserId)
-    );
+    const otherUser = !isGroup
+        ? selectedConversation.members?.find(
+            (m) => String(m._id) !== String(currentUserId)
+        )
+        : null;
+
+    const headerName = isGroup ? selectedConversation.name : otherUser?.name;
+    const headerAvatarLetter = isGroup
+        ? selectedConversation.name?.charAt(0).toUpperCase()
+        : otherUser?.name?.charAt(0).toUpperCase();
+    const headerStatus = isGroup
+        ? `${selectedConversation.members?.length || 0} members`
+        : "Online";
 
     const isOwnMessage = (msg) => {
         if (!msg.sender) return false;
@@ -79,6 +176,47 @@ const ChatWindow = () => {
                 : msg.sender;
         if (!senderId || !currentUserId) return false;
         return String(senderId) === String(currentUserId);
+    };
+
+    // WhatsApp-style tick renderer
+    const renderTicks = (msg) => {
+        const msgId = msg._id;
+
+        // Priority 1: Read (blue double tick)
+        const isRead = msg.isRead || readMessages.has(msgId);
+        if (isRead) {
+            return (
+                <CheckCheck
+                    size={14}
+                    color="#53bdeb"
+                    strokeWidth={2.5}
+                    style={styles.tick}
+                />
+            );
+        }
+
+        // Priority 2: Delivered (grey double tick)
+        const isDelivered = msg.deliveredAt || deliveredMessages.has(msgId);
+        if (isDelivered) {
+            return (
+                <CheckCheck
+                    size={14}
+                    color="rgba(255,255,255,0.7)"
+                    strokeWidth={2.5}
+                    style={styles.tick}
+                />
+            );
+        }
+
+        // Priority 3: Sent (single grey tick)
+        return (
+            <Check
+                size={14}
+                color="rgba(255,255,255,0.7)"
+                strokeWidth={2.5}
+                style={styles.tick}
+            />
+        );
     };
 
     const handleSend = async () => {
@@ -141,7 +279,7 @@ const ChatWindow = () => {
 
     return (
         <main style={styles.window}>
-            {/* Header */}
+            {/* Chat Header */}
             <div style={styles.chatHeader}>
                 {isMobile && (
                     <button
@@ -152,32 +290,73 @@ const ChatWindow = () => {
                         <ArrowLeft size={22} strokeWidth={2} />
                     </button>
                 )}
-                <div style={styles.headerAvatar}>
-                    {otherUser?.name?.charAt(0).toUpperCase()}
-                </div>
-                <div style={styles.headerInfo}>
-                    <div style={styles.headerName}>{otherUser?.name}</div>
-                    <div style={styles.headerStatus}>
-                        {otherUserTyping ? (
-                            <span style={styles.typingStatus}>
-                                {otherUser?.name} is typing...
-                            </span>
+
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px",
+                        flex: 1,
+                        cursor: isGroup ? "pointer" : "default",
+                    }}
+                    onClick={() => {
+                        if (isGroup) setShowGroupInfo(true);
+                    }}
+                >
+                    <div
+                        style={{
+                            ...styles.headerAvatar,
+                            background: isGroup
+                                ? "linear-gradient(135deg, #8b5cf6, #a855f7)"
+                                : "linear-gradient(135deg, #4d6bfe, #6366f1)",
+                        }}
+                    >
+                        {isGroup ? (
+                            <Users size={20} color="#fff" strokeWidth={2} />
                         ) : (
-                            "Online"
+                            headerAvatarLetter
                         )}
                     </div>
+                    <div style={styles.headerInfo}>
+                        <div style={styles.headerName}>{headerName}</div>
+                        <div
+                            style={{
+                                ...styles.headerStatus,
+                                color: isGroup ? "#8b5cf6" : "#22c55e",
+                            }}
+                        >
+                            {otherUserTyping ? (
+                                <span style={styles.typingStatus}>
+                                    {otherUser?.name} is typing...
+                                </span>
+                            ) : (
+                                headerStatus
+                            )}
+                        </div>
+                    </div>
                 </div>
+
+                <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    style={styles.menuBtn}
+                    title="Delete conversation"
+                >
+                    <Trash2 size={18} color="#ef4444" strokeWidth={2} />
+                </button>
             </div>
 
             {/* Messages */}
             <div style={styles.messagesArea}>
                 {messages.length === 0 ? (
                     <div style={styles.noMessages}>
-                        <p>Say hi to {otherUser?.name}! 👋</p>
+                        <p>Say hi to {headerName}! 👋</p>
                     </div>
                 ) : (
                     messages.map((msg) => {
                         const isOwn = isOwnMessage(msg);
+                        const senderName =
+                            typeof msg.sender === "object" ? msg.sender?.name : null;
+
                         return (
                             <div
                                 key={msg._id}
@@ -201,17 +380,23 @@ const ChatWindow = () => {
                                             : "0 1px 3px rgba(0,0,0,0.08)",
                                     }}
                                 >
+                                    {isGroup && !isOwn && senderName && (
+                                        <div style={styles.senderName}>{senderName}</div>
+                                    )}
                                     {msg.text}
-                                    <div
-                                        style={{
-                                            ...styles.time,
-                                            color: isOwn ? "rgba(255,255,255,0.7)" : "#9ca3af",
-                                        }}
-                                    >
-                                        {new Date(msg.createdAt).toLocaleTimeString([], {
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                        })}
+                                    <div style={styles.timeRow}>
+                                        <span
+                                            style={{
+                                                ...styles.time,
+                                                color: isOwn ? "rgba(255,255,255,0.7)" : "#9ca3af",
+                                            }}
+                                        >
+                                            {new Date(msg.createdAt).toLocaleTimeString([], {
+                                                hour: "2-digit",
+                                                minute: "2-digit",
+                                            })}
+                                        </span>
+                                        {isOwn && renderTicks(msg)}
                                     </div>
                                 </div>
                             </div>
@@ -246,6 +431,35 @@ const ChatWindow = () => {
                     </button>
                 </div>
             </div>
+
+            {/* Group Info Modal */}
+            {showGroupInfo && isGroup && (
+                <GroupInfoModal
+                    group={selectedConversation}
+                    onClose={() => setShowGroupInfo(false)}
+                    onRemoveMember={(memberId) => {
+                        console.log("Remove member:", memberId);
+                    }}
+                />
+            )}
+
+            {/* Delete Confirmation */}
+            {showDeleteConfirm && (
+                <DeleteConfirmModal
+                    title={isGroup ? "Delete group?" : "Delete chat?"}
+                    message={
+                        isGroup
+                            ? "This will permanently delete the group and all its messages for everyone."
+                            : "This will delete all messages in this conversation. This action cannot be undone."
+                    }
+                    confirmText="Delete"
+                    onCancel={() => setShowDeleteConfirm(false)}
+                    onConfirm={() => {
+                        dispatch(deleteConversationThunk(selectedConversation._id));
+                        setShowDeleteConfirm(false);
+                    }}
+                />
+            )}
         </main>
     );
 };
@@ -313,7 +527,6 @@ const styles = {
         width: "42px",
         height: "42px",
         borderRadius: "50%",
-        background: "linear-gradient(135deg, #4d6bfe, #6366f1)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -324,8 +537,19 @@ const styles = {
     },
     headerInfo: { flex: 1 },
     headerName: { fontSize: "15px", fontWeight: "600", color: "#1a1a1a" },
-    headerStatus: { fontSize: "12px", color: "#22c55e", marginTop: "2px" },
+    headerStatus: { fontSize: "12px", marginTop: "2px" },
     typingStatus: { color: "#4d6bfe", fontStyle: "italic" },
+    menuBtn: {
+        background: "transparent",
+        border: "none",
+        padding: "8px",
+        borderRadius: "8px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        flexShrink: 0,
+    },
     messagesArea: {
         flex: 1,
         overflowY: "auto",
@@ -350,7 +574,21 @@ const styles = {
         lineHeight: "1.5",
         wordWrap: "break-word",
     },
-    time: { fontSize: "10px", marginTop: "4px", textAlign: "right" },
+    senderName: {
+        fontSize: "11px",
+        fontWeight: "700",
+        color: "#4d6bfe",
+        marginBottom: "4px",
+    },
+    timeRow: {
+        display: "flex",
+        alignItems: "center",
+        gap: "4px",
+        justifyContent: "flex-end",
+        marginTop: "4px",
+    },
+    time: { fontSize: "10px" },
+    tick: { marginLeft: "2px" },
     inputArea: {
         padding: "12px 16px",
         background: "#ffffff",

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { io } from "socket.io-client";
-import { addIncomingMessage } from "../redux/chatSlice";
+import { addIncomingMessage, fetchUnreadCounts } from "../redux/chatSlice";
 import API from "../services/api";
 
 const SocketContext = createContext();
@@ -18,12 +18,11 @@ export const SocketProvider = ({ children }) => {
     const joinedRoomsRef = useRef(new Set());
     const selectedConvRef = useRef(selectedConversation);
 
-    // Keep fresh ref of selectedConversation
     useEffect(() => {
         selectedConvRef.current = selectedConversation;
     }, [selectedConversation]);
 
-    // 🔌 Connect socket when user logs in
+    // 🔌 Connect socket
     useEffect(() => {
         if (!user) {
             if (socketRef.current) {
@@ -46,7 +45,6 @@ export const SocketProvider = ({ children }) => {
             console.log("✅ Socket connected:", newSocket.id);
             newSocket.emit("userOnline", user._id);
 
-            // 🎯 Join ALL conversations of user immediately
             try {
                 const res = await API.get("/conversations");
                 const convos = res.data;
@@ -58,10 +56,15 @@ export const SocketProvider = ({ children }) => {
             } catch (err) {
                 console.error("Failed to join conversations:", err.message);
             }
+
+            // Refresh unread counts on connect
+            dispatch(fetchUnreadCounts());
         });
 
         newSocket.on("onlineUsers", (users) => {
             setOnlineUsers(users);
+            // 🔥 Refresh unread counts when users come online/offline
+            dispatch(fetchUnreadCounts());
         });
 
         newSocket.on("disconnect", () => {
@@ -74,7 +77,7 @@ export const SocketProvider = ({ children }) => {
             socketRef.current = null;
             joinedRoomsRef.current.clear();
         };
-    }, [user]);
+    }, [user, dispatch]);
 
     // 📨 Handle incoming messages
     useEffect(() => {
@@ -91,15 +94,57 @@ export const SocketProvider = ({ children }) => {
             const currentUserId = user._id || user.id;
             if (String(senderId) === String(currentUserId)) return;
 
+            // Add to Redux
             dispatch(addIncomingMessage(message));
 
-            // Notification sound
-            try {
-                const audio = new Audio("/notification.mp3");
-                audio.volume = 0.5;
-                audio.play().catch(() => { });
-            } catch (err) {
-                // Silent
+            // Check if current conversation is open
+            const currentConvId = selectedConvRef.current?._id;
+            const isCurrentConvOpen =
+                currentConvId && String(message.conversation) === String(currentConvId);
+
+            // 🔥 Mark as DELIVERED (we're online, we received it)
+            socket.emit("messagesDelivered", {
+                conversationId: message.conversation,
+                readerId: currentUserId,
+            });
+
+            fetch(
+                `http://localhost:5000/api/messages/${message.conversation}/delivered`,
+                {
+                    method: "PUT",
+                    headers: {
+                        Authorization: `Bearer ${JSON.parse(localStorage.getItem("userInfo")).token
+                            }`,
+                    },
+                }
+            ).catch(() => { });
+
+            // 🔥 If current conversation open, mark as READ
+            if (isCurrentConvOpen) {
+                socket.emit("messagesRead", {
+                    conversationId: message.conversation,
+                    readerId: currentUserId,
+                });
+
+                fetch(
+                    `http://localhost:5000/api/messages/${message.conversation}/read`,
+                    {
+                        method: "PUT",
+                        headers: {
+                            Authorization: `Bearer ${JSON.parse(localStorage.getItem("userInfo")).token
+                                }`,
+                        },
+                    }
+                ).catch(() => { });
+            } else {
+                // Play sound
+                try {
+                    const audio = new Audio("/notification.mp3");
+                    audio.volume = 0.5;
+                    audio.play().catch(() => { });
+                } catch (err) {
+                    // Silent
+                }
             }
         };
 
@@ -110,8 +155,7 @@ export const SocketProvider = ({ children }) => {
         };
     }, [socket, dispatch, user]);
 
-    // 🎯 When a NEW conversation is opened (that wasn't joined at connect),
-    // join its room too. NEVER leave rooms.
+    // 🎯 When user opens a NEW conversation, join its room + refresh
     useEffect(() => {
         if (!socket || !selectedConversation) return;
 

@@ -48,23 +48,60 @@ export const getMessages = async (req, res) => {
     }
 };
 
-// @desc    Mark message as read
-// @route   PUT /api/messages/:id/read
+// @desc    Mark all messages in a conversation as read
+// @route   PUT /api/messages/:conversationId/read
 // @access  Private
 export const markAsRead = async (req, res) => {
     try {
-        const message = await Message.findByIdAndUpdate(
-            req.params.id,
-            { isRead: true },
-            { new: true }
+        const conversationId = req.params.conversationId;
+        const userId = req.user._id;
+
+        const result = await Message.updateMany(
+            {
+                conversation: conversationId,
+                sender: { $ne: userId },
+                isRead: false,
+            },
+            {
+                isRead: true,
+                readAt: new Date(),
+                deliveredAt: new Date(),
+            }
         );
 
-        if (!message) {
-            return res.status(404).json({ message: "Message not found" });
-        }
-
-        res.json(message);
+        res.json({
+            message: "Messages marked as read",
+            modified: result.modifiedCount,
+        });
     } catch (error) {
+        console.error("markAsRead error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Mark messages as delivered
+// @route   PUT /api/messages/:conversationId/delivered
+// @access  Private
+export const markAsDelivered = async (req, res) => {
+    try {
+        const conversationId = req.params.conversationId;
+        const userId = req.user._id;
+
+        const result = await Message.updateMany(
+            {
+                conversation: conversationId,
+                sender: { $ne: userId },
+                deliveredAt: null,
+            },
+            { deliveredAt: new Date() }
+        );
+
+        res.json({
+            message: "Messages marked as delivered",
+            modified: result.modifiedCount,
+        });
+    } catch (error) {
+        console.error("markAsDelivered error:", error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -89,6 +126,62 @@ export const deleteMessage = async (req, res) => {
         await message.deleteOne();
         res.json({ message: "Message deleted" });
     } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Get unread message counts
+// @route   GET /api/messages/unread/counts
+// @access  Private
+export const getUnreadCounts = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const conversations = await Conversation.find({
+            members: { $in: [userId] },
+        }).populate("members", "_id");
+
+        // Aggregate unread counts by conversation
+        const counts = await Message.aggregate([
+            {
+                $match: {
+                    conversation: { $in: conversations.map((c) => c._id) },
+                    sender: { $ne: userId },
+                    isRead: false,
+                },
+            },
+            {
+                $group: {
+                    _id: "$conversation",
+                    count: { $sum: 1 },
+                },
+            },
+        ]);
+
+        // Map conversation ID → sender user ID
+        const result = {};
+        for (const c of counts) {
+            const conv = conversations.find(
+                (conv) => conv._id.toString() === c._id.toString()
+            );
+            if (!conv) continue;
+
+            if (conv.type === "private") {
+                const otherMember = conv.members.find(
+                    (m) => m._id.toString() !== userId.toString()
+                );
+                if (otherMember) {
+                    result[otherMember._id.toString()] = c.count;
+                }
+            } else {
+                // Group: use conversation ID
+                result[c._id.toString()] = c.count;
+            }
+        }
+
+        res.json(result);
+    } catch (error) {
+        console.error("getUnreadCounts error:", error);
         res.status(500).json({ message: error.message });
     }
 };
