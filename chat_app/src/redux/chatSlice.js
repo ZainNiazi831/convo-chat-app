@@ -108,6 +108,22 @@ export const markConversationRead = createAsyncThunk(
     }
 );
 
+export const fetchConversations = createAsyncThunk(
+    "chat/fetchConversations",
+    async (_, thunkAPI) => {
+        try {
+            const response = await API.get("/conversations");
+            return response.data;
+        } catch (error) {
+            const message =
+                error.response?.data?.message ||
+                error.message ||
+                "Failed to load conversations";
+            return thunkAPI.rejectWithValue(message);
+        }
+    }
+);
+
 const chatSlice = createSlice({
     name: "chat",
     initialState,
@@ -136,31 +152,42 @@ const chatSlice = createSlice({
             state.message = "";
             state.showSidebarOnMobile = true;
         },
-        // 🔥 ROBUST: Compare conversation IDs directly
+        // 🔥 WhatsApp-style unread count
         addIncomingMessage: (state, action) => {
             const incoming = action.payload;
+
             const senderId =
                 typeof incoming.sender === "object"
                     ? incoming.sender?._id
                     : incoming.sender;
 
-            // Add message to messages array (for the currently open conversation)
+            if (!senderId) {
+                console.log("❌ No sender ID in incoming message");
+                return;
+            }
+
+            // Add message (dedupe)
             const exists = state.messages.some((m) => m._id === incoming._id);
             if (!exists) {
                 state.messages.push(incoming);
             }
 
-            if (!senderId) return;
-
-            // 🔑 The KEY check: is this conversation currently open?
+            // Check if conversation is currently open
             const currentConvId = state.selectedConversation?._id;
-            const isCurrentConversationOpen =
-                currentConvId &&
-                String(currentConvId) === String(incoming.conversation);
+            const isConversationOpen =
+                currentConvId && String(currentConvId) === String(incoming.conversation);
 
-            // Only increment unread if the conversation is NOT currently open
-            if (!isCurrentConversationOpen) {
+            console.log("🔍 addIncomingMessage:", {
+                senderId,
+                incomingConv: incoming.conversation,
+                currentConv: currentConvId,
+                isOpen: isConversationOpen,
+            });
+
+            // Increment unread ONLY if conversation is NOT open
+            if (!isConversationOpen) {
                 state.unreadCounts[senderId] = (state.unreadCounts[senderId] || 0) + 1;
+                console.log("📊 New unreadCounts:", { ...state.unreadCounts });
             }
         },
         clearUnreadForUser: (state, action) => {
@@ -223,6 +250,9 @@ const chatSlice = createSlice({
                 if (otherUserId) {
                     delete state.unreadCounts[otherUserId];
                 }
+            })
+            .addCase(fetchConversations.fulfilled, (state, action) => {
+                state.conversations = action.payload;
             });
     },
 });

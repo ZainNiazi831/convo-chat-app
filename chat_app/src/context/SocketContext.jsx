@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { io } from "socket.io-client";
 import { addIncomingMessage } from "../redux/chatSlice";
+import API from "../services/api";
 
 const SocketContext = createContext();
 
@@ -14,6 +15,7 @@ export const SocketProvider = ({ children }) => {
     const { selectedConversation } = useSelector((state) => state.chat);
     const dispatch = useDispatch();
     const socketRef = useRef(null);
+    const joinedRoomsRef = useRef(new Set());
     const selectedConvRef = useRef(selectedConversation);
 
     // Keep fresh ref of selectedConversation
@@ -29,6 +31,7 @@ export const SocketProvider = ({ children }) => {
                 socketRef.current = null;
                 setSocket(null);
             }
+            joinedRoomsRef.current.clear();
             return;
         }
 
@@ -39,9 +42,22 @@ export const SocketProvider = ({ children }) => {
         socketRef.current = newSocket;
         setSocket(newSocket);
 
-        newSocket.on("connect", () => {
+        newSocket.on("connect", async () => {
             console.log("✅ Socket connected:", newSocket.id);
             newSocket.emit("userOnline", user._id);
+
+            // 🎯 Join ALL conversations of user immediately
+            try {
+                const res = await API.get("/conversations");
+                const convos = res.data;
+                convos.forEach((conv) => {
+                    newSocket.emit("joinConversation", conv._id);
+                    joinedRoomsRef.current.add(conv._id);
+                    console.log("🚪 Joined room:", conv._id);
+                });
+            } catch (err) {
+                console.error("Failed to join conversations:", err.message);
+            }
         });
 
         newSocket.on("onlineUsers", (users) => {
@@ -50,11 +66,13 @@ export const SocketProvider = ({ children }) => {
 
         newSocket.on("disconnect", () => {
             console.log("❌ Socket disconnected");
+            joinedRoomsRef.current.clear();
         });
 
         return () => {
             newSocket.disconnect();
             socketRef.current = null;
+            joinedRoomsRef.current.clear();
         };
     }, [user]);
 
@@ -63,6 +81,8 @@ export const SocketProvider = ({ children }) => {
         if (!socket || !user) return;
 
         const handleReceive = (message) => {
+            console.log("📥 [SOCKET RECEIVE]", message);
+
             const senderId =
                 typeof message.sender === "object"
                     ? message.sender?._id
@@ -73,19 +93,13 @@ export const SocketProvider = ({ children }) => {
 
             dispatch(addIncomingMessage(message));
 
-            // Play sound if not in current conversation
-            const currentConvId = selectedConvRef.current?._id;
-            const isCurrentConv =
-                currentConvId && String(message.conversation) === String(currentConvId);
-
-            if (!isCurrentConv) {
-                try {
-                    const audio = new Audio("/notification.mp3");
-                    audio.volume = 0.5;
-                    audio.play().catch(() => { });
-                } catch (err) {
-                    // Silent fail
-                }
+            // Notification sound
+            try {
+                const audio = new Audio("/notification.mp3");
+                audio.volume = 0.5;
+                audio.play().catch(() => { });
+            } catch (err) {
+                // Silent
             }
         };
 
@@ -96,15 +110,17 @@ export const SocketProvider = ({ children }) => {
         };
     }, [socket, dispatch, user]);
 
-    // 🚪 Join/leave conversation room
+    // 🎯 When a NEW conversation is opened (that wasn't joined at connect),
+    // join its room too. NEVER leave rooms.
     useEffect(() => {
         if (!socket || !selectedConversation) return;
 
-        socket.emit("joinConversation", selectedConversation._id);
-
-        return () => {
-            socket.emit("leaveConversation", selectedConversation._id);
-        };
+        const convId = selectedConversation._id;
+        if (!joinedRoomsRef.current.has(convId)) {
+            socket.emit("joinConversation", convId);
+            joinedRoomsRef.current.add(convId);
+            console.log("🚪 Joined new room (on open):", convId);
+        }
     }, [socket, selectedConversation]);
 
     return (

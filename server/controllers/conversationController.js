@@ -14,35 +14,42 @@ export const createConversation = async (req, res) => {
                 return res.status(400).json({ message: "UserId is required" });
             }
 
-            if (userId === req.user._id.toString()) {
+            const currentUserId = req.user._id;
+            const otherUserId = userId;
+
+            if (String(currentUserId) === String(otherUserId)) {
                 return res
                     .status(400)
                     .json({ message: "Cannot create conversation with yourself" });
             }
 
-            // Strictly find conversation with EXACTLY these 2 members
-            const allConversations = await Conversation.find({
+            // Find all candidate conversations
+            const candidates = await Conversation.find({
                 type: "private",
-                members: { $all: [req.user._id, userId] },
+                members: { $all: [currentUserId, otherUserId] },
             })
                 .populate("members", "-password")
                 .populate("lastMessage");
 
-            // Filter: only conversations with exactly 2 members
-            let conversation = allConversations.find((c) => c.members.length === 2);
+            // Only accept exactly 2-member conversations
+            let conversation = candidates.find((c) => c.members.length === 2);
 
             if (conversation) {
+                console.log(
+                    "✅ Existing conversation found:",
+                    conversation._id.toString()
+                );
                 return res.json(conversation);
             }
 
             // Create new
+            console.log("🆕 Creating new conversation");
             conversation = await Conversation.create({
                 type: "private",
-                members: [req.user._id, userId],
+                members: [currentUserId, otherUserId],
             });
 
             conversation = await conversation.populate("members", "-password");
-
             return res.status(201).json(conversation);
         }
 
@@ -61,7 +68,6 @@ export const createConversation = async (req, res) => {
         });
 
         const populated = await conversation.populate("members", "-password");
-
         res.status(201).json(populated);
     } catch (error) {
         console.error("createConversation error:", error);
