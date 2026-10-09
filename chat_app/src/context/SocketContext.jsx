@@ -1,7 +1,11 @@
 import { createContext, useContext, useEffect, useState, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { io } from "socket.io-client";
-import { addIncomingMessage, fetchUnreadCounts } from "../redux/chatSlice";
+import {
+    addIncomingMessage,
+    fetchUnreadCounts,
+    markMessageDeleted,
+} from "../redux/chatSlice";
 import API from "../services/api";
 
 const SocketContext = createContext();
@@ -26,7 +30,7 @@ export const SocketProvider = ({ children }) => {
         selectedConvRef.current = selectedConversation;
     }, [selectedConversation]);
 
-    // 🔌 Connect socket when user logs in
+    // 🔌 Connect socket
     useEffect(() => {
         if (!user) {
             if (socketRef.current) {
@@ -155,6 +159,22 @@ export const SocketProvider = ({ children }) => {
             socket.off("receiveMessage", handleReceive);
         };
     }, [socket, dispatch, user]);
+
+    // 🔥 Handle real-time message deletion
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleDeletedForEveryone = ({ conversationId, message }) => {
+            console.log("🗑️ [MESSAGE DELETED FOR EVERYONE]", message);
+            dispatch(markMessageDeleted(message));
+        };
+
+        socket.on("messageDeletedForEveryone", handleDeletedForEveryone);
+
+        return () => {
+            socket.off("messageDeletedForEveryone", handleDeletedForEveryone);
+        };
+    }, [socket, dispatch]);
 
     // 🎯 When user opens a NEW conversation, join its room
     useEffect(() => {

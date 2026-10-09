@@ -4,7 +4,8 @@ import {
     getMessages,
     markAsRead,
     markAsDelivered,
-    deleteMessage,
+    deleteForMe,
+    deleteForEveryone,
     getUnreadCounts,
 } from "../controllers/messageController.js";
 import { protect } from "../middleware/authMiddleware.js";
@@ -16,6 +17,7 @@ router.get("/unread/counts", protect, getUnreadCounts);
 router.get("/:conversationId", protect, getMessages);
 router.put("/:conversationId/read", protect, markAsRead);
 router.put("/:conversationId/delivered", protect, markAsDelivered);
-router.delete("/:id", protect, deleteMessage);
+router.delete("/:id/me", protect, deleteForMe);
+router.delete("/:id/everyone", protect, deleteForEveryone);
 
 export default router;

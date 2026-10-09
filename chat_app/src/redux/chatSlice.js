@@ -118,6 +118,40 @@ export const sendMessage = createAsyncThunk(
     }
 );
 
+// ─── DELETE MESSAGE FOR ME ───
+export const deleteMessageForMe = createAsyncThunk(
+    "chat/deleteMessageForMe",
+    async (messageId, thunkAPI) => {
+        try {
+            await API.delete(`/messages/${messageId}/me`);
+            return messageId;
+        } catch (error) {
+            const message =
+                error.response?.data?.message ||
+                error.message ||
+                "Failed to delete message";
+            return thunkAPI.rejectWithValue(message);
+        }
+    }
+);
+
+// ─── DELETE MESSAGE FOR EVERYONE ───
+export const deleteMessageForEveryone = createAsyncThunk(
+    "chat/deleteMessageForEveryone",
+    async (messageId, thunkAPI) => {
+        try {
+            const response = await API.delete(`/messages/${messageId}/everyone`);
+            return response.data.data; // returns updated message
+        } catch (error) {
+            const message =
+                error.response?.data?.message ||
+                error.message ||
+                "Failed to delete message";
+            return thunkAPI.rejectWithValue(message);
+        }
+    }
+);
+
 // ─── FETCH UNREAD COUNTS ───
 export const fetchUnreadCounts = createAsyncThunk(
     "chat/fetchUnreadCounts",
@@ -241,6 +275,19 @@ const chatSlice = createSlice({
                 delete state.unreadCounts[userId];
             }
         },
+        // 🔥 Real-time delete for everyone
+        markMessageDeleted: (state, action) => {
+            const updatedMessage = action.payload;
+            const index = state.messages.findIndex(
+                (m) => m._id === updatedMessage._id
+            );
+            if (index !== -1) {
+                state.messages[index] = {
+                    ...state.messages[index],
+                    ...updatedMessage,
+                };
+            }
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -257,11 +304,9 @@ const chatSlice = createSlice({
                 state.isError = true;
                 state.message = action.payload;
             })
-            // Search
             .addCase(searchUsers.fulfilled, (state, action) => {
                 state.users = action.payload;
             })
-            // Create private
             .addCase(createConversation.pending, (state) => {
                 state.isLoading = true;
             })
@@ -275,7 +320,6 @@ const chatSlice = createSlice({
                 state.isError = true;
                 state.message = action.payload;
             })
-            // Create group
             .addCase(createGroupConversation.pending, (state) => {
                 state.isLoading = true;
             })
@@ -290,11 +334,9 @@ const chatSlice = createSlice({
                 state.isError = true;
                 state.message = action.payload;
             })
-            // Fetch messages
             .addCase(fetchMessages.fulfilled, (state, action) => {
                 state.messages = action.payload;
             })
-            // Send message
             .addCase(sendMessage.pending, (state) => {
                 state.isSending = true;
             })
@@ -310,11 +352,22 @@ const chatSlice = createSlice({
                 state.isError = true;
                 state.message = action.payload;
             })
-            // Fetch unread counts
+            // 🔥 Delete for me — remove from Redux messages
+            .addCase(deleteMessageForMe.fulfilled, (state, action) => {
+                const deletedId = action.payload;
+                state.messages = state.messages.filter((m) => m._id !== deletedId);
+            })
+            // 🔥 Delete for everyone — update message
+            .addCase(deleteMessageForEveryone.fulfilled, (state, action) => {
+                const updated = action.payload;
+                const index = state.messages.findIndex((m) => m._id === updated._id);
+                if (index !== -1) {
+                    state.messages[index] = { ...state.messages[index], ...updated };
+                }
+            })
             .addCase(fetchUnreadCounts.fulfilled, (state, action) => {
                 state.unreadCounts = action.payload;
             })
-            // Delete conversation
             .addCase(deleteConversationThunk.fulfilled, (state, action) => {
                 const deletedId = action.payload;
                 state.conversations = state.conversations.filter(
@@ -326,14 +379,12 @@ const chatSlice = createSlice({
                     state.showSidebarOnMobile = true;
                 }
             })
-            // Mark as read
             .addCase(markConversationRead.fulfilled, (state, action) => {
                 const otherUserId = action.payload;
                 if (otherUserId) {
                     delete state.unreadCounts[otherUserId];
                 }
             })
-            // Fetch conversations
             .addCase(fetchConversations.fulfilled, (state, action) => {
                 state.conversations = action.payload;
             });
@@ -347,6 +398,7 @@ export const {
     addIncomingMessage,
     showMobileSidebar,
     clearUnreadForUser,
+    markMessageDeleted,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;

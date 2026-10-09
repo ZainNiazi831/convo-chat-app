@@ -1,16 +1,27 @@
 import { useState, useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { ArrowLeft, Send, Users, Trash2, Check, CheckCheck } from "lucide-react";
+import {
+    ArrowLeft,
+    Send,
+    Users,
+    Trash2,
+    Check,
+    CheckCheck,
+    Ban,
+} from "lucide-react";
 import {
     sendMessage,
     showMobileSidebar,
     deleteConversationThunk,
+    deleteMessageForMe,
+    deleteMessageForEveryone,
 } from "../redux/chatSlice";
 import { useSocket } from "../context/SocketContext";
 import useIsMobile from "../hooks/useIsMobile";
 import API from "../services/api";
 import GroupInfoModal from "./GroupInfoModal";
 import DeleteConfirmModal from "./DeleteConfirmModal";
+import MessageMenu from "./MessageMenu";
 
 const ChatWindow = () => {
     const dispatch = useDispatch();
@@ -27,6 +38,7 @@ const ChatWindow = () => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [readMessages, setReadMessages] = useState(new Set());
     const [deliveredMessages, setDeliveredMessages] = useState(new Set());
+    const [menuState, setMenuState] = useState(null); // { x, y, message }
     const messagesEndRef = useRef(null);
     const typingTimeoutRef = useRef(null);
 
@@ -35,13 +47,12 @@ const ChatWindow = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    // Mark all incoming as delivered + read when chat opens
+    // Mark delivered + read when chat opens
     useEffect(() => {
         if (!selectedConversation || !socket || !user) return;
 
         const currentUserId = user._id || user.id;
 
-        // Delivered
         socket.emit("messagesDelivered", {
             conversationId: selectedConversation._id,
             readerId: currentUserId,
@@ -55,7 +66,6 @@ const ChatWindow = () => {
             },
         }).catch(() => { });
 
-        // Read
         socket.emit("messagesRead", {
             conversationId: selectedConversation._id,
             readerId: currentUserId,
@@ -70,7 +80,7 @@ const ChatWindow = () => {
         }).catch(() => { });
     }, [selectedConversation, socket, user]);
 
-    // Listen for typing + read + delivered
+    // Listen typing + read + delivered
     useEffect(() => {
         if (!socket || !user) return;
 
@@ -176,8 +186,6 @@ const ChatWindow = () => {
     // WhatsApp-style tick renderer
     const renderTicks = (msg) => {
         const msgId = msg._id;
-
-        // Priority 1: Read (blue double tick)
         const isRead = msg.isRead || readMessages.has(msgId);
         if (isRead) {
             return (
@@ -190,7 +198,6 @@ const ChatWindow = () => {
             );
         }
 
-        // Priority 2: Delivered (grey double tick)
         const isDelivered = msg.deliveredAt || deliveredMessages.has(msgId);
         if (isDelivered) {
             return (
@@ -203,7 +210,6 @@ const ChatWindow = () => {
             );
         }
 
-        // Priority 3: Sent (single grey tick)
         return (
             <Check
                 size={14}
@@ -212,6 +218,38 @@ const ChatWindow = () => {
                 style={styles.tick}
             />
         );
+    };
+
+    // Handle right-click on a message
+    const handleContextMenu = (e, msg) => {
+        e.preventDefault();
+        if (msg.isDeleted) return;
+        setMenuState({
+            x: e.clientX,
+            y: e.clientY,
+            message: msg,
+        });
+    };
+
+    const handleDeleteForMe = async () => {
+        if (!menuState) return;
+        const msgId = menuState.message._id;
+        setMenuState(null);
+        dispatch(deleteMessageForMe(msgId));
+    };
+
+    const handleDeleteForEveryone = async () => {
+        if (!menuState) return;
+        const msg = menuState.message;
+        setMenuState(null);
+
+        const result = await dispatch(deleteMessageForEveryone(msg._id));
+        if (result.meta.requestStatus === "fulfilled" && socket) {
+            socket.emit("messageDeletedForEveryone", {
+                conversationId: selectedConversation._id,
+                message: result.payload,
+            });
+        }
     };
 
     const handleSend = async () => {
@@ -384,6 +422,7 @@ const ChatWindow = () => {
                         const isOwn = isOwnMessage(msg);
                         const senderName =
                             typeof msg.sender === "object" ? msg.sender?.name : null;
+                        const isDeleted = msg.isDeleted;
 
                         return (
                             <div
@@ -392,40 +431,56 @@ const ChatWindow = () => {
                                     ...styles.messageRow,
                                     justifyContent: isOwn ? "flex-end" : "flex-start",
                                 }}
+                                onContextMenu={(e) => handleContextMenu(e, msg)}
                             >
                                 <div
                                     style={{
                                         ...styles.bubble,
-                                        background: isOwn
-                                            ? "linear-gradient(135deg, #4d6bfe, #6366f1)"
-                                            : "#ffffff",
-                                        color: isOwn ? "#fff" : "#1a1a1a",
+                                        background: isDeleted
+                                            ? "#f1f5f9"
+                                            : isOwn
+                                                ? "linear-gradient(135deg, #4d6bfe, #6366f1)"
+                                                : "#ffffff",
+                                        color: isDeleted ? "#9ca3af" : isOwn ? "#fff" : "#1a1a1a",
                                         borderRadius: isOwn
                                             ? "16px 16px 4px 16px"
                                             : "16px 16px 16px 4px",
-                                        boxShadow: isOwn
+                                        boxShadow: isOwn && !isDeleted
                                             ? "0 2px 8px rgba(77,107,254,0.25)"
                                             : "0 1px 3px rgba(0,0,0,0.08)",
+                                        fontStyle: isDeleted ? "italic" : "normal",
                                     }}
                                 >
-                                    {isGroup && !isOwn && senderName && (
+                                    {isGroup && !isOwn && senderName && !isDeleted && (
                                         <div style={styles.senderName}>{senderName}</div>
                                     )}
-                                    {msg.text}
-                                    <div style={styles.timeRow}>
-                                        <span
-                                            style={{
-                                                ...styles.time,
-                                                color: isOwn ? "rgba(255,255,255,0.7)" : "#9ca3af",
-                                            }}
-                                        >
-                                            {new Date(msg.createdAt).toLocaleTimeString([], {
-                                                hour: "2-digit",
-                                                minute: "2-digit",
-                                            })}
-                                        </span>
-                                        {isOwn && renderTicks(msg)}
-                                    </div>
+
+                                    {isDeleted ? (
+                                        <div style={styles.deletedRow}>
+                                            <Ban size={14} color="#9ca3af" strokeWidth={2} />
+                                            <span>This message was deleted</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {msg.text}
+                                            <div style={styles.timeRow}>
+                                                <span
+                                                    style={{
+                                                        ...styles.time,
+                                                        color: isOwn
+                                                            ? "rgba(255,255,255,0.7)"
+                                                            : "#9ca3af",
+                                                    }}
+                                                >
+                                                    {new Date(msg.createdAt).toLocaleTimeString([], {
+                                                        hour: "2-digit",
+                                                        minute: "2-digit",
+                                                    })}
+                                                </span>
+                                                {isOwn && renderTicks(msg)}
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         );
@@ -460,6 +515,18 @@ const ChatWindow = () => {
                 </div>
             </div>
 
+            {/* Context Menu */}
+            {menuState && (
+                <MessageMenu
+                    x={menuState.x}
+                    y={menuState.y}
+                    isOwn={isOwnMessage(menuState.message)}
+                    onDeleteForMe={handleDeleteForMe}
+                    onDeleteForEveryone={handleDeleteForEveryone}
+                    onClose={() => setMenuState(null)}
+                />
+            )}
+
             {/* Group Info Modal */}
             {showGroupInfo && isGroup && (
                 <GroupInfoModal
@@ -469,7 +536,7 @@ const ChatWindow = () => {
                 />
             )}
 
-            {/* Delete Confirmation */}
+            {/* Delete Conversation Confirmation */}
             {showDeleteConfirm && (
                 <DeleteConfirmModal
                     title={isGroup ? "Delete group?" : "Delete chat?"}
@@ -605,6 +672,12 @@ const styles = {
         fontWeight: "700",
         color: "#4d6bfe",
         marginBottom: "4px",
+    },
+    deletedRow: {
+        display: "flex",
+        alignItems: "center",
+        gap: "6px",
+        fontSize: "13px",
     },
     timeRow: {
         display: "flex",

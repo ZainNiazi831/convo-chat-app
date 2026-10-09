@@ -5,10 +5,30 @@ import Conversation from "../models/Conversation.js";
 
 const onlineUsers = new Map();
 
+// 🎯 Allowed origins for Socket.io
+const allowedOrigins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    process.env.CLIENT_URL,
+    "https://convo-chat-app-ochre.vercel.app",
+    "https://convo-chat-app-production.up.railway.app",
+].filter(Boolean);
+
 export const initSocket = (httpServer) => {
     const io = new Server(httpServer, {
         cors: {
-            origin: process.env.CLIENT_URL || "http://localhost:5173",
+            origin: function (origin, callback) {
+                // Allow requests without origin (mobile apps, Postman)
+                if (!origin) return callback(null, true);
+
+                if (allowedOrigins.indexOf(origin) !== -1) {
+                    callback(null, true);
+                } else {
+                    console.log("❌ Socket CORS blocked:", origin);
+                    callback(new Error("Not allowed by CORS"));
+                }
+            },
+            credentials: true,
             methods: ["GET", "POST"],
         },
     });
@@ -24,14 +44,13 @@ export const initSocket = (httpServer) => {
             try {
                 await User.findByIdAndUpdate(userId, { isOnline: true });
 
-                // 🔥 Mark ALL pending messages delivered for this user
+                // Mark all pending messages as delivered
                 const userConversations = await Conversation.find({
                     members: { $in: [userId] },
                 }).select("_id");
 
                 const convIds = userConversations.map((c) => c._id);
 
-                // Find all undelivered messages (sent to this user)
                 const pendingMessages = await Message.find({
                     conversation: { $in: convIds },
                     sender: { $ne: userId },
@@ -43,7 +62,6 @@ export const initSocket = (httpServer) => {
                         `📬 Marking ${pendingMessages.length} messages as delivered for user ${userId}`
                     );
 
-                    // Mark all as delivered
                     await Message.updateMany(
                         {
                             conversation: { $in: convIds },
@@ -53,9 +71,9 @@ export const initSocket = (httpServer) => {
                         { deliveredAt: new Date() }
                     );
 
-                    // Notify each sender's socket
                     for (const msg of pendingMessages) {
-                        const senderId = msg.sender?._id?.toString() || msg.sender.toString();
+                        const senderId =
+                            msg.sender?._id?.toString() || msg.sender.toString();
                         const senderSocketId = onlineUsers.get(senderId);
 
                         if (senderSocketId) {
@@ -85,12 +103,10 @@ export const initSocket = (httpServer) => {
             console.log(`🔵 Socket ${socket.id} left room ${conversationId}`);
         });
 
-        // ──────── SEND MESSAGE (Auto-Delivered) ────────
+        // ──────── SEND MESSAGE ────────
         socket.on("sendMessage", async (message) => {
-            // Broadcast to room (except sender)
             socket.to(message.conversation).emit("receiveMessage", message);
 
-            // Check if any other member is online → mark delivered
             try {
                 const conversation = await Conversation.findById(message.conversation);
                 if (!conversation) return;
@@ -135,6 +151,15 @@ export const initSocket = (httpServer) => {
                 conversationId,
                 readerId,
                 deliveredAt: new Date(),
+            });
+        });
+
+        // 🔥 ──────── MESSAGE DELETED FOR EVERYONE ────────
+        socket.on("messageDeletedForEveryone", ({ conversationId, message }) => {
+            console.log("🗑️ Message deleted for everyone:", message._id);
+            socket.to(conversationId).emit("messageDeletedForEveryone", {
+                conversationId,
+                message,
             });
         });
 

@@ -36,14 +36,18 @@ export const sendMessage = async (req, res) => {
 // @access  Private
 export const getMessages = async (req, res) => {
     try {
+        const userId = req.user._id;
+
         const messages = await Message.find({
             conversation: req.params.conversationId,
+            deletedFor: { $ne: userId }, // Exclude messages deleted for this user
         })
             .populate("sender", "-password")
             .sort({ createdAt: 1 });
 
         res.json(messages);
     } catch (error) {
+        console.error("getMessages error:", error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -106,26 +110,64 @@ export const markAsDelivered = async (req, res) => {
     }
 };
 
-// @desc    Delete a message
-// @route   DELETE /api/messages/:id
+// @desc    Delete message for me
+// @route   DELETE /api/messages/:id/me
 // @access  Private
-export const deleteMessage = async (req, res) => {
+export const deleteForMe = async (req, res) => {
     try {
-        const message = await Message.findById(req.params.id);
+        const messageId = req.params.id;
+        const userId = req.user._id;
+
+        const message = await Message.findById(messageId);
 
         if (!message) {
             return res.status(404).json({ message: "Message not found" });
         }
 
-        if (message.sender.toString() !== req.user._id.toString()) {
+        // Add user to deletedFor array
+        if (!message.deletedFor.includes(userId)) {
+            message.deletedFor.push(userId);
+            await message.save();
+        }
+
+        res.json({ message: "Deleted for you", messageId });
+    } catch (error) {
+        console.error("deleteForMe error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Delete message for everyone
+// @route   DELETE /api/messages/:id/everyone
+// @access  Private
+export const deleteForEveryone = async (req, res) => {
+    try {
+        const messageId = req.params.id;
+        const userId = req.user._id;
+
+        const message = await Message.findById(messageId);
+
+        if (!message) {
+            return res.status(404).json({ message: "Message not found" });
+        }
+
+        // Only sender can delete for everyone
+        if (message.sender.toString() !== userId.toString()) {
             return res
                 .status(403)
                 .json({ message: "You can only delete your own messages" });
         }
 
-        await message.deleteOne();
-        res.json({ message: "Message deleted" });
+        message.isDeleted = true;
+        message.deletedAt = new Date();
+        message.text = "This message was deleted";
+        await message.save();
+
+        const populated = await message.populate("sender", "-password");
+
+        res.json({ message: "Deleted for everyone", data: populated });
     } catch (error) {
+        console.error("deleteForEveryone error:", error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -141,13 +183,14 @@ export const getUnreadCounts = async (req, res) => {
             members: { $in: [userId] },
         }).populate("members", "_id");
 
-        // Aggregate unread counts by conversation
         const counts = await Message.aggregate([
             {
                 $match: {
                     conversation: { $in: conversations.map((c) => c._id) },
                     sender: { $ne: userId },
                     isRead: false,
+                    deletedFor: { $ne: userId },
+                    isDeleted: false,
                 },
             },
             {
@@ -158,7 +201,6 @@ export const getUnreadCounts = async (req, res) => {
             },
         ]);
 
-        // Map conversation ID → sender user ID
         const result = {};
         for (const c of counts) {
             const conv = conversations.find(
@@ -174,7 +216,6 @@ export const getUnreadCounts = async (req, res) => {
                     result[otherMember._id.toString()] = c.count;
                 }
             } else {
-                // Group: use conversation ID
                 result[c._id.toString()] = c.count;
             }
         }

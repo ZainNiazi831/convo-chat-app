@@ -14,7 +14,7 @@ const messageSchema = new mongoose.Schema(
         },
         text: {
             type: String,
-            required: [true, "Message text is required"],
+            default: "",
             trim: true,
         },
         isRead: {
@@ -29,6 +29,22 @@ const messageSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
+        // 🔥 Delete for everyone
+        isDeleted: {
+            type: Boolean,
+            default: false,
+        },
+        deletedAt: {
+            type: Date,
+            default: null,
+        },
+        // 🔥 Delete for me (per user)
+        deletedFor: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User",
+            },
+        ],
     },
     { timestamps: true }
 );
