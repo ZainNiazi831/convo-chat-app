@@ -6,7 +6,7 @@ import Conversation from "../models/Conversation.js";
 // @access  Private
 export const sendMessage = async (req, res) => {
     try {
-        const { conversationId, text } = req.body;
+        const { conversationId, text, replyTo } = req.body;
 
         if (!conversationId || !text) {
             return res.status(400).json({ message: "All fields are required" });
@@ -16,13 +16,19 @@ export const sendMessage = async (req, res) => {
             conversation: conversationId,
             sender: req.user._id,
             text,
+            replyTo: replyTo || null,
         });
 
         await Conversation.findByIdAndUpdate(conversationId, {
             lastMessage: message._id,
         });
 
+        // ✅ Populate sender AND replyTo (with replyTo's sender)
         message = await message.populate("sender", "-password");
+        message = await message.populate({
+            path: "replyTo",
+            populate: { path: "sender", select: "name username" },
+        });
 
         res.status(201).json(message);
     } catch (error) {
@@ -40,9 +46,13 @@ export const getMessages = async (req, res) => {
 
         const messages = await Message.find({
             conversation: req.params.conversationId,
-            deletedFor: { $ne: userId }, // Exclude messages deleted for this user
+            deletedFor: { $ne: userId },
         })
             .populate("sender", "-password")
+            .populate({
+                path: "replyTo",
+                populate: { path: "sender", select: "name username" },
+            })
             .sort({ createdAt: 1 });
 
         res.json(messages);
@@ -124,7 +134,6 @@ export const deleteForMe = async (req, res) => {
             return res.status(404).json({ message: "Message not found" });
         }
 
-        // Add user to deletedFor array
         if (!message.deletedFor.includes(userId)) {
             message.deletedFor.push(userId);
             await message.save();
@@ -151,7 +160,6 @@ export const deleteForEveryone = async (req, res) => {
             return res.status(404).json({ message: "Message not found" });
         }
 
-        // Only sender can delete for everyone
         if (message.sender.toString() !== userId.toString()) {
             return res
                 .status(403)

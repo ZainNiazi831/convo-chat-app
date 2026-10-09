@@ -8,6 +8,8 @@ import {
     Check,
     CheckCheck,
     Ban,
+    X,
+    Reply as ReplyIcon,
 } from "lucide-react";
 import {
     sendMessage,
@@ -22,6 +24,7 @@ import API from "../services/api";
 import GroupInfoModal from "./GroupInfoModal";
 import DeleteConfirmModal from "./DeleteConfirmModal";
 import MessageMenu from "./MessageMenu";
+import MessageInfoModal from "./MessageInfoModal";
 
 const ChatWindow = () => {
     const dispatch = useDispatch();
@@ -38,9 +41,12 @@ const ChatWindow = () => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [readMessages, setReadMessages] = useState(new Set());
     const [deliveredMessages, setDeliveredMessages] = useState(new Set());
-    const [menuState, setMenuState] = useState(null); // { x, y, message }
+    const [menuState, setMenuState] = useState(null);
+    const [replyTo, setReplyTo] = useState(null);
+    const [infoMessage, setInfoMessage] = useState(null);
     const messagesEndRef = useRef(null);
     const typingTimeoutRef = useRef(null);
+    const inputRef = useRef(null);
 
     // Auto-scroll
     useEffect(() => {
@@ -58,26 +64,32 @@ const ChatWindow = () => {
             readerId: currentUserId,
         });
 
-        fetch(`${API.defaults.baseURL}/messages/${selectedConversation._id}/delivered`, {
-            method: "PUT",
-            headers: {
-                Authorization: `Bearer ${JSON.parse(localStorage.getItem("userInfo")).token
-                    }`,
-            },
-        }).catch(() => { });
+        fetch(
+            `${API.defaults.baseURL}/messages/${selectedConversation._id}/delivered`,
+            {
+                method: "PUT",
+                headers: {
+                    Authorization: `Bearer ${JSON.parse(localStorage.getItem("userInfo")).token
+                        }`,
+                },
+            }
+        ).catch(() => { });
 
         socket.emit("messagesRead", {
             conversationId: selectedConversation._id,
             readerId: currentUserId,
         });
 
-        fetch(`${API.defaults.baseURL}/messages/${selectedConversation._id}/read`, {
-            method: "PUT",
-            headers: {
-                Authorization: `Bearer ${JSON.parse(localStorage.getItem("userInfo")).token
-                    }`,
-            },
-        }).catch(() => { });
+        fetch(
+            `${API.defaults.baseURL}/messages/${selectedConversation._id}/read`,
+            {
+                method: "PUT",
+                headers: {
+                    Authorization: `Bearer ${JSON.parse(localStorage.getItem("userInfo")).token
+                        }`,
+                },
+            }
+        ).catch(() => { });
     }, [selectedConversation, socket, user]);
 
     // Listen typing + read + delivered
@@ -98,8 +110,7 @@ const ChatWindow = () => {
             if (conversationId !== selectedConversation?._id) return;
             const ownIds = messages
                 .filter((m) => {
-                    const sid =
-                        typeof m.sender === "object" ? m.sender?._id : m.sender;
+                    const sid = typeof m.sender === "object" ? m.sender?._id : m.sender;
                     return String(sid) === String(user._id || user.id);
                 })
                 .map((m) => m._id);
@@ -138,6 +149,10 @@ const ChatWindow = () => {
 
     useEffect(() => {
         setOtherUserTyping(false);
+    }, [selectedConversation]);
+
+    useEffect(() => {
+        setReplyTo(null);
     }, [selectedConversation]);
 
     if (!selectedConversation) {
@@ -183,7 +198,6 @@ const ChatWindow = () => {
         return String(senderId) === String(currentUserId);
     };
 
-    // WhatsApp-style tick renderer
     const renderTicks = (msg) => {
         const msgId = msg._id;
         const isRead = msg.isRead || readMessages.has(msgId);
@@ -220,7 +234,6 @@ const ChatWindow = () => {
         );
     };
 
-    // Handle right-click on a message
     const handleContextMenu = (e, msg) => {
         e.preventDefault();
         if (msg.isDeleted) return;
@@ -229,6 +242,25 @@ const ChatWindow = () => {
             y: e.clientY,
             message: msg,
         });
+    };
+
+    const handleCopy = () => {
+        if (!menuState) return;
+        navigator.clipboard.writeText(menuState.message.text);
+        setMenuState(null);
+    };
+
+    const handleReply = () => {
+        if (!menuState) return;
+        setReplyTo(menuState.message);
+        setMenuState(null);
+        inputRef.current?.focus();
+    };
+
+    const handleInfo = () => {
+        if (!menuState) return;
+        setInfoMessage(menuState.message);
+        setMenuState(null);
     };
 
     const handleDeleteForMe = async () => {
@@ -256,7 +288,10 @@ const ChatWindow = () => {
         if (!text.trim() || isSending) return;
 
         const messageText = text.trim();
+        const replyToId = replyTo?._id || null;
+
         setText("");
+        setReplyTo(null);
 
         if (socket && isTyping) {
             socket.emit("stopTyping", {
@@ -270,6 +305,7 @@ const ChatWindow = () => {
             sendMessage({
                 conversationId: selectedConversation._id,
                 text: messageText,
+                replyTo: replyToId,
             })
         );
 
@@ -445,14 +481,52 @@ const ChatWindow = () => {
                                         borderRadius: isOwn
                                             ? "16px 16px 4px 16px"
                                             : "16px 16px 16px 4px",
-                                        boxShadow: isOwn && !isDeleted
-                                            ? "0 2px 8px rgba(77,107,254,0.25)"
-                                            : "0 1px 3px rgba(0,0,0,0.08)",
+                                        boxShadow:
+                                            isOwn && !isDeleted
+                                                ? "0 2px 8px rgba(77,107,254,0.25)"
+                                                : "0 1px 3px rgba(0,0,0,0.08)",
                                         fontStyle: isDeleted ? "italic" : "normal",
                                     }}
                                 >
                                     {isGroup && !isOwn && senderName && !isDeleted && (
                                         <div style={styles.senderName}>{senderName}</div>
+                                    )}
+
+                                    {/* Reply preview (quoted message) — WhatsApp style */}
+                                    {msg.replyTo && !isDeleted && (
+                                        <div
+                                            style={{
+                                                ...styles.replyPreview,
+                                                background: isOwn
+                                                    ? "rgba(255,255,255,0.2)"
+                                                    : "rgba(77,107,254,0.08)",
+                                                borderLeft: `3px solid ${isOwn ? "rgba(255,255,255,0.9)" : "#4d6bfe"
+                                                    }`,
+                                            }}
+                                        >
+                                            <div
+                                                style={{
+                                                    ...styles.replyName,
+                                                    color: isOwn ? "#fff" : "#4d6bfe",
+                                                }}
+                                            >
+                                                {typeof msg.replyTo.sender === "object"
+                                                    ? msg.replyTo.sender.name
+                                                    : "User"}
+                                            </div>
+                                            <div
+                                                style={{
+                                                    ...styles.replyText,
+                                                    color: isOwn
+                                                        ? "rgba(255,255,255,0.85)"
+                                                        : "#64748b",
+                                                }}
+                                            >
+                                                {msg.replyTo.isDeleted
+                                                    ? "This message was deleted"
+                                                    : msg.replyTo.text?.slice(0, 60) || ""}
+                                            </div>
+                                        </div>
                                     )}
 
                                     {isDeleted ? (
@@ -489,10 +563,43 @@ const ChatWindow = () => {
                 <div ref={messagesEndRef} />
             </div>
 
+            {/* Reply Input Preview — WhatsApp style */}
+            {replyTo && (
+                <div style={styles.replyBar}>
+                    <div style={styles.replyBarContent}>
+                        <ReplyIcon
+                            size={18}
+                            color="#4d6bfe"
+                            strokeWidth={2}
+                            style={{ transform: "scaleX(-1)", flexShrink: 0 }}
+                        />
+                        <div style={styles.replyBarText}>
+                            <div style={styles.replyBarName}>
+                                {typeof replyTo.sender === "object"
+                                    ? replyTo.sender.name
+                                    : "You"}
+                            </div>
+                            <div style={styles.replyBarMessage}>
+                                {replyTo.isDeleted
+                                    ? "This message was deleted"
+                                    : replyTo.text?.slice(0, 80)}
+                            </div>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setReplyTo(null)}
+                        style={styles.replyCloseBtn}
+                    >
+                        <X size={18} color="#6b7280" strokeWidth={2} />
+                    </button>
+                </div>
+            )}
+
             {/* Input */}
             <div style={styles.inputArea}>
                 <div style={styles.inputWrapper}>
                     <input
+                        ref={inputRef}
                         type="text"
                         placeholder="Type a message..."
                         value={text}
@@ -521,9 +628,21 @@ const ChatWindow = () => {
                     x={menuState.x}
                     y={menuState.y}
                     isOwn={isOwnMessage(menuState.message)}
+                    message={menuState.message}
+                    onCopy={handleCopy}
+                    onReply={handleReply}
+                    onInfo={handleInfo}
                     onDeleteForMe={handleDeleteForMe}
                     onDeleteForEveryone={handleDeleteForEveryone}
                     onClose={() => setMenuState(null)}
+                />
+            )}
+
+            {/* Message Info Modal */}
+            {infoMessage && (
+                <MessageInfoModal
+                    message={infoMessage}
+                    onClose={() => setInfoMessage(null)}
                 />
             )}
 
@@ -673,6 +792,27 @@ const styles = {
         color: "#4d6bfe",
         marginBottom: "4px",
     },
+    replyPreview: {
+        padding: "6px 10px",
+        borderRadius: "6px",
+        marginBottom: "8px",
+        borderLeft: "3px solid #4d6bfe",
+        opacity: 0.95,
+    },
+    replyName: {
+        fontSize: "11px",
+        fontWeight: "700",
+        marginBottom: "2px",
+        color: "#4d6bfe",
+    },
+    replyText: {
+        fontSize: "12px",
+        color: "#64748b",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        lineHeight: "1.3",
+    },
     deletedRow: {
         display: "flex",
         alignItems: "center",
@@ -688,6 +828,50 @@ const styles = {
     },
     time: { fontSize: "10px" },
     tick: { marginLeft: "2px" },
+    replyBar: {
+        padding: "10px 16px 4px 16px",
+        background: "#ffffff",
+        display: "flex",
+        alignItems: "flex-end",
+        gap: "10px",
+        borderTop: "1px solid #f3f4f6",
+    },
+    replyBarContent: {
+        flex: 1,
+        display: "flex",
+        alignItems: "flex-start",
+        gap: "10px",
+        background: "#f0f9ff",
+        padding: "10px 12px",
+        borderRadius: "10px",
+        borderLeft: "4px solid #4d6bfe",
+    },
+    replyBarText: {
+        flex: 1,
+        minWidth: 0,
+    },
+    replyBarName: {
+        fontSize: "12px",
+        fontWeight: "700",
+        color: "#4d6bfe",
+        marginBottom: "2px",
+    },
+    replyBarMessage: {
+        fontSize: "12.5px",
+        color: "#64748b",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        lineHeight: "1.3",
+    },
+    replyCloseBtn: {
+        background: "transparent",
+        border: "none",
+        padding: "6px",
+        borderRadius: "8px",
+        cursor: "pointer",
+        display: "flex",
+    },
     inputArea: {
         padding: "12px 16px",
         background: "#ffffff",
