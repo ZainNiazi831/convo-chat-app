@@ -87,7 +87,7 @@ export const createConversation = async (req, res) => {
     }
 };
 
-// @desc    Get all conversations of current user
+// @desc    Get all conversations of current user (with last message details)
 // @route   GET /api/conversations
 // @access  Private
 export const getConversations = async (req, res) => {
@@ -96,12 +96,19 @@ export const getConversations = async (req, res) => {
             members: { $in: [req.user._id] },
         })
             .populate("members", "-password")
-            .populate("lastMessage")
+            .populate({
+                path: "lastMessage",
+                populate: {
+                    path: "sender",
+                    select: "name username",
+                },
+            })
             .populate("groupAdmin", "-password")
             .sort({ updatedAt: -1 });
 
         res.json(conversations);
     } catch (error) {
+        console.error("getConversations error:", error);
         res.status(500).json({ message: error.message });
     }
 };

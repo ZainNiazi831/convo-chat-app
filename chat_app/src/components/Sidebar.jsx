@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { Search, MoreVertical, Users } from "lucide-react";
+import { Search, MoreVertical, Users, Pin } from "lucide-react";
 import { logout } from "../redux/authSlice";
 import {
     fetchUsers,
@@ -21,14 +21,14 @@ const Sidebar = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const { user } = useSelector((state) => state.auth);
-    const { users, isLoading, unreadCounts, conversations } = useSelector(
-        (state) => state.chat
-    );
+    const { users, isLoading, unreadCounts, conversations, messages } =
+        useSelector((state) => state.chat);
     const [searchTerm, setSearchTerm] = useState("");
     const [hoveredId, setHoveredId] = useState(null);
     const [activeUserId, setActiveUserId] = useState(null);
     const [showGroupModal, setShowGroupModal] = useState(false);
     const [menuState, setMenuState] = useState(null);
+    const [activeTab, setActiveTab] = useState("all"); // all | unread | groups | favourites
 
     useEffect(() => {
         dispatch(fetchUsers());
@@ -46,35 +46,41 @@ const Sidebar = () => {
         return () => clearTimeout(timer);
     }, [searchTerm, dispatch]);
 
+    // Refresh conversations when new messages arrive
+    useEffect(() => {
+        if (messages.length > 0) {
+            dispatch(fetchConversations());
+        }
+    }, [messages.length, dispatch]);
+
+    const currentUserId = user?._id || user?.id;
+
     const handleLogout = () => {
         dispatch(logout());
         dispatch(resetChat());
         navigate("/login");
     };
 
-    const handleUserClick = async (clickedUser) => {
-        setActiveUserId(clickedUser._id);
-        const result = await dispatch(createConversation(clickedUser._id));
-        if (result.meta.requestStatus === "fulfilled") {
-            const conv = result.payload;
-            dispatch(fetchMessages(conv._id));
+    const handleConversationClick = async (conv) => {
+        setActiveUserId(conv._id);
+        dispatch(setSelectedConversation(conv));
+        dispatch(fetchMessages(conv._id));
 
-            if (unreadCounts[clickedUser._id]) {
+        // Mark as read
+        if (conv.type === "private") {
+            const otherUser = conv.members?.find(
+                (m) => String(m._id) !== String(currentUserId)
+            );
+            if (otherUser && unreadCounts[otherUser._id]) {
                 dispatch(
                     markConversationRead({
                         conversationId: conv._id,
-                        otherUserId: clickedUser._id,
+                        otherUserId: otherUser._id,
                     })
                 );
-                dispatch(clearUnreadForUser(clickedUser._id));
+                dispatch(clearUnreadForUser(otherUser._id));
             }
         }
-    };
-
-    const handleGroupClick = async (group) => {
-        setActiveUserId(group._id);
-        dispatch(setSelectedConversation(group));
-        dispatch(fetchMessages(group._id));
     };
 
     const handleOpenMenu = (e) => {
@@ -91,7 +97,91 @@ const Sidebar = () => {
         return count.toString();
     };
 
-    const groups = conversations.filter((c) => c.type === "group");
+    const formatTime = (date) => {
+        if (!date) return "";
+        const d = new Date(date);
+        const now = new Date();
+        const diffMs = now - d;
+        const diffHrs = diffMs / (1000 * 60 * 60);
+
+        if (diffHrs < 24) {
+            return d.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+            });
+        } else if (diffHrs < 48) {
+            return "Yesterday";
+        } else {
+            return d.toLocaleDateString([], {
+                day: "2-digit",
+                month: "short",
+            });
+        }
+    };
+
+    // Get unread count for a conversation
+    const getConvUnreadCount = (conv) => {
+        if (conv.type === "group") {
+            return unreadCounts[conv._id] || 0;
+        }
+        const otherUser = conv.members?.find(
+            (m) => String(m._id) !== String(currentUserId)
+        );
+        return otherUser ? unreadCounts[otherUser._id] || 0 : 0;
+    };
+
+    // Get display name for a conversation
+    const getConvDisplayName = (conv) => {
+        if (conv.type === "group") return conv.name || "Group";
+        const otherUser = conv.members?.find(
+            (m) => String(m._id) !== String(currentUserId)
+        );
+        return otherUser?.name || "Unknown";
+    };
+
+    // Get last message preview
+    const getLastMessagePreview = (conv) => {
+        const lm = conv.lastMessage;
+        if (!lm) return { text: "No messages yet", isOwn: false, isDeleted: false };
+
+        const isOwn = String(lm.sender?._id || lm.sender) === String(currentUserId);
+        const senderName =
+            conv.type === "group" && !isOwn ? `${lm.sender?.name}: ` : isOwn ? "You: " : "";
+
+        return {
+            text: `${senderName}${lm.text || ""}`,
+            isOwn,
+            isDeleted: lm.isDeleted,
+        };
+    };
+
+    // Filter conversations based on tab
+    const getFilteredConversations = () => {
+        let filtered = [...conversations];
+
+        if (activeTab === "unread") {
+            filtered = filtered.filter((c) => getConvUnreadCount(c) > 0);
+        } else if (activeTab === "groups") {
+            filtered = filtered.filter((c) => c.type === "group");
+        } else if (activeTab === "favourites") {
+            filtered = []; // Future
+        }
+
+        // Search filter
+        if (searchTerm.trim()) {
+            filtered = filtered.filter((c) => {
+                const name = getConvDisplayName(c);
+                return name.toLowerCase().includes(searchTerm.toLowerCase());
+            });
+        }
+
+        return filtered;
+    };
+
+    // Sidebar shows conversations if any exist, else shows users
+    const filteredConversations = getFilteredConversations();
+    const hasConversations = conversations.length > 0;
+
     const filteredUsers = users.filter(
         (u) =>
             !searchTerm ||
@@ -99,22 +189,25 @@ const Sidebar = () => {
             u.username.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const tabs = [
+        { id: "all", label: "All" },
+        { id: "unread", label: "Unread" },
+        { id: "groups", label: "Groups" },
+        { id: "favourites", label: "Favourites" },
+    ];
+
     return (
         <>
             <aside style={styles.sidebar}>
-                {/* Header — Logo + 3-dot menu (no buttons) */}
+                {/* Header */}
                 <div style={styles.header}>
                     <img src="/logo.png" alt="Logo" style={styles.brandLogo} />
-                    <button
-                        onClick={handleOpenMenu}
-                        style={styles.menuBtn}
-                        title="Menu"
-                    >
+                    <button onClick={handleOpenMenu} style={styles.menuBtn} title="Menu">
                         <MoreVertical size={22} color="#6b7280" strokeWidth={2} />
                     </button>
                 </div>
 
-                {/* Search Bar — Directly under header */}
+                {/* Search */}
                 <div style={styles.searchWrapper}>
                     <div style={styles.searchBox}>
                         <Search
@@ -125,7 +218,7 @@ const Sidebar = () => {
                         />
                         <input
                             type="text"
-                            placeholder="Search users..."
+                            placeholder="Search or start a new chat"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             style={styles.searchInput}
@@ -133,131 +226,170 @@ const Sidebar = () => {
                     </div>
                 </div>
 
-                {/* Groups Section */}
-                {groups.length > 0 && (
-                    <>
-                        <div style={styles.sectionLabel}>Groups</div>
-                        <div style={styles.list}>
-                            {groups.map((g) => {
-                                const isActive = activeUserId === g._id;
-                                const isHovered = hoveredId === g._id;
-                                return (
+                {/* Tabs (only show if we have conversations) */}
+                {hasConversations && (
+                    <div style={styles.tabsWrapper}>
+                        {tabs.map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                style={{
+                                    ...styles.tab,
+                                    background: activeTab === tab.id ? "#d1fae5" : "#ffffff",
+                                    color: activeTab === tab.id ? "#059669" : "#64748b",
+                                    border: `1px solid ${activeTab === tab.id ? "#a7f3d0" : "#e5e7eb"
+                                        }`,
+                                }}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {/* Conversations List (if any) */}
+                {hasConversations ? (
+                    <div style={styles.list}>
+                        {filteredConversations.length === 0 && (
+                            <div style={styles.stateText}>
+                                {activeTab === "unread"
+                                    ? "No unread chats"
+                                    : activeTab === "groups"
+                                        ? "No groups yet"
+                                        : activeTab === "favourites"
+                                            ? "No favourites yet"
+                                            : "No chats found"}
+                            </div>
+                        )}
+
+                        {filteredConversations.map((conv) => {
+                            const isActive = activeUserId === conv._id;
+                            const isHovered = hoveredId === conv._id;
+                            const unreadCount = getConvUnreadCount(conv);
+                            const hasUnread = unreadCount > 0;
+                            const displayName = getConvDisplayName(conv);
+                            const preview = getLastMessagePreview(conv);
+                            const isGroup = conv.type === "group";
+                            const lastMsgTime = conv.lastMessage?.createdAt || conv.updatedAt;
+
+                            return (
+                                <div
+                                    key={conv._id}
+                                    style={{
+                                        ...styles.userItem,
+                                        background: isActive
+                                            ? "#eef2ff"
+                                            : isHovered
+                                                ? "#f9fafb"
+                                                : "transparent",
+                                        borderLeft: isActive
+                                            ? "3px solid #4d6bfe"
+                                            : "3px solid transparent",
+                                    }}
+                                    onMouseEnter={() => setHoveredId(conv._id)}
+                                    onMouseLeave={() => setHoveredId(null)}
+                                    onClick={() => handleConversationClick(conv)}
+                                >
                                     <div
-                                        key={g._id}
                                         style={{
-                                            ...styles.userItem,
-                                            background: isActive
-                                                ? "#eef2ff"
-                                                : isHovered
-                                                    ? "#f9fafb"
-                                                    : "transparent",
-                                            borderLeft: isActive
-                                                ? "3px solid #4d6bfe"
-                                                : "3px solid transparent",
+                                            ...styles.smallAvatar,
+                                            background: isGroup
+                                                ? "linear-gradient(135deg, #8b5cf6, #a855f7)"
+                                                : "linear-gradient(135deg, #4d6bfe, #6366f1)",
                                         }}
-                                        onMouseEnter={() => setHoveredId(g._id)}
-                                        onMouseLeave={() => setHoveredId(null)}
-                                        onClick={() => handleGroupClick(g)}
                                     >
-                                        <div
-                                            style={{
-                                                ...styles.smallAvatar,
-                                                background:
-                                                    "linear-gradient(135deg, #8b5cf6, #a855f7)",
-                                            }}
-                                        >
+                                        {isGroup ? (
                                             <Users size={18} color="#fff" strokeWidth={2} />
-                                        </div>
-                                        <div style={styles.itemInfo}>
+                                        ) : (
+                                            displayName?.charAt(0).toUpperCase()
+                                        )}
+                                    </div>
+
+                                    <div style={styles.itemInfo}>
+                                        <div style={styles.nameRow}>
                                             <div
                                                 style={{
                                                     ...styles.itemName,
                                                     color: isActive ? "#4d6bfe" : "#1a1a1a",
+                                                    fontWeight: hasUnread ? "700" : "500",
+                                                    flex: 1,
                                                 }}
                                             >
-                                                {g.name}
+                                                {displayName}
                                             </div>
-                                            <div style={styles.itemUsername}>
-                                                {g.members?.length || 0} members
+                                            <div
+                                                style={{
+                                                    ...styles.timeText,
+                                                    color: hasUnread ? "#4d6bfe" : "#9ca3af",
+                                                }}
+                                            >
+                                                {formatTime(lastMsgTime)}
                                             </div>
                                         </div>
+
+                                        <div style={styles.previewRow}>
+                                            <div
+                                                style={{
+                                                    ...styles.itemUsername,
+                                                    color: hasUnread ? "#4d6bfe" : "#9ca3af",
+                                                    fontWeight: hasUnread ? "600" : "400",
+                                                    flex: 1,
+                                                }}
+                                            >
+                                                {preview.isDeleted ? (
+                                                    <em>This message was deleted</em>
+                                                ) : (
+                                                    preview.text
+                                                )}
+                                            </div>
+                                            {hasUnread && (
+                                                <div style={styles.badge}>{formatBadge(unreadCount)}</div>
+                                            )}
+                                        </div>
                                     </div>
-                                );
-                            })}
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    /* Show users list if no conversations */
+                    <>
+                        <div style={styles.sectionLabel}>Start a conversation</div>
+                        <div style={styles.list}>
+                            {isLoading && !filteredUsers.length && (
+                                <div style={styles.stateText}>Loading...</div>
+                            )}
+
+                            {filteredUsers.map((u) => (
+                                <div
+                                    key={u._id}
+                                    style={{
+                                        ...styles.userItem,
+                                        background:
+                                            hoveredId === u._id ? "#f9fafb" : "transparent",
+                                    }}
+                                    onMouseEnter={() => setHoveredId(u._id)}
+                                    onMouseLeave={() => setHoveredId(null)}
+                                    onClick={() => {
+                                        dispatch(createConversation(u._id)).then((res) => {
+                                            if (res.meta.requestStatus === "fulfilled") {
+                                                dispatch(fetchMessages(res.payload._id));
+                                            }
+                                        });
+                                    }}
+                                >
+                                    <div style={styles.smallAvatar}>
+                                        {u.name?.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div style={styles.itemInfo}>
+                                        <div style={styles.itemName}>{u.name}</div>
+                                        <div style={styles.itemUsername}>@{u.username}</div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </>
                 )}
-
-                {/* Contacts Section */}
-                <div style={styles.sectionLabel}>Contacts</div>
-                <div style={styles.list}>
-                    {isLoading && !filteredUsers.length && (
-                        <div style={styles.stateText}>Loading...</div>
-                    )}
-
-                    {!isLoading && filteredUsers.length === 0 && (
-                        <div style={styles.stateText}>
-                            {searchTerm ? "No users found" : "No users yet"}
-                        </div>
-                    )}
-
-                    {filteredUsers.map((u) => {
-                        const isActive = activeUserId === u._id;
-                        const isHovered = hoveredId === u._id;
-                        const unreadCount = unreadCounts[u._id] || 0;
-                        const hasUnread = unreadCount > 0;
-
-                        return (
-                            <div
-                                key={u._id}
-                                style={{
-                                    ...styles.userItem,
-                                    background: isActive
-                                        ? "#eef2ff"
-                                        : isHovered
-                                            ? "#f9fafb"
-                                            : "transparent",
-                                    borderLeft: isActive
-                                        ? "3px solid #4d6bfe"
-                                        : "3px solid transparent",
-                                }}
-                                onMouseEnter={() => setHoveredId(u._id)}
-                                onMouseLeave={() => setHoveredId(null)}
-                                onClick={() => handleUserClick(u)}
-                            >
-                                <div style={styles.smallAvatar}>
-                                    {u.name?.charAt(0).toUpperCase()}
-                                </div>
-                                <div style={styles.itemInfo}>
-                                    <div
-                                        style={{
-                                            ...styles.itemName,
-                                            color: isActive ? "#4d6bfe" : "#1a1a1a",
-                                            fontWeight: hasUnread ? "700" : "500",
-                                        }}
-                                    >
-                                        {u.name}
-                                    </div>
-                                    <div
-                                        style={{
-                                            ...styles.itemUsername,
-                                            color: hasUnread ? "#4d6bfe" : "#9ca3af",
-                                            fontWeight: hasUnread ? "600" : "400",
-                                        }}
-                                    >
-                                        {hasUnread
-                                            ? `${formatBadge(unreadCount)} new message${unreadCount > 1 ? "s" : ""
-                                            }`
-                                            : `@${u.username}`}
-                                    </div>
-                                </div>
-                                {hasUnread && (
-                                    <div style={styles.badge}>{formatBadge(unreadCount)}</div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
 
                 {/* Bottom Profile */}
                 <div style={styles.bottomProfile}>
@@ -273,7 +405,7 @@ const Sidebar = () => {
                 </div>
             </aside>
 
-            {/* Sidebar 3-dot Menu */}
+            {/* Sidebar Menu */}
             {menuState && (
                 <SidebarMenu
                     x={menuState.x}
@@ -282,11 +414,10 @@ const Sidebar = () => {
                     onNewGroup={() => setShowGroupModal(true)}
                     onNewChat={() => {
                         setSearchTerm("");
+                        setActiveTab("all");
                         dispatch(fetchUsers());
                     }}
-                    onProfile={() => {
-                        alert("Profile page coming soon!");
-                    }}
+                    onProfile={() => alert("Profile page coming soon!")}
                     onLogout={handleLogout}
                 />
             )}
@@ -331,7 +462,6 @@ const styles = {
         justifyContent: "center",
         cursor: "pointer",
         flexShrink: 0,
-        transition: "background 0.15s",
     },
     searchWrapper: {
         padding: "12px 16px 8px 16px",
@@ -354,7 +484,23 @@ const styles = {
         borderRadius: "999px",
         color: "#1a1a1a",
         fontSize: "14px",
+        outline: "none",
+    },
+    tabsWrapper: {
+        display: "flex",
+        gap: "8px",
+        padding: "8px 16px 12px 16px",
+        overflowX: "auto",
+    },
+    tab: {
+        padding: "7px 16px",
+        borderRadius: "999px",
+        fontSize: "13px",
+        fontWeight: "600",
+        cursor: "pointer",
         transition: "all 0.15s",
+        whiteSpace: "nowrap",
+        fontFamily: "inherit",
     },
     sectionLabel: {
         padding: "8px 20px 6px 20px",
@@ -379,15 +525,15 @@ const styles = {
         display: "flex",
         alignItems: "center",
         gap: "12px",
-        padding: "10px 16px",
+        padding: "12px 16px",
         margin: "0 8px",
         borderRadius: "8px",
         cursor: "pointer",
-        transition: "background 0.15s, border-left 0.15s",
+        transition: "background 0.15s",
     },
     smallAvatar: {
-        width: "40px",
-        height: "40px",
+        width: "44px",
+        height: "44px",
         borderRadius: "50%",
         background: "linear-gradient(135deg, #4d6bfe, #6366f1)",
         display: "flex",
@@ -395,21 +541,36 @@ const styles = {
         justifyContent: "center",
         color: "#fff",
         fontWeight: "600",
-        fontSize: "15px",
+        fontSize: "16px",
         flexShrink: 0,
     },
     itemInfo: { flex: 1, minWidth: 0 },
+    nameRow: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "8px",
+        marginBottom: "2px",
+    },
+    previewRow: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "8px",
+    },
     itemName: {
-        fontSize: "14px",
-        fontWeight: "500",
+        fontSize: "14.5px",
         whiteSpace: "nowrap",
         overflow: "hidden",
         textOverflow: "ellipsis",
     },
+    timeText: {
+        fontSize: "11.5px",
+        fontWeight: "500",
+        flexShrink: 0,
+    },
     itemUsername: {
         fontSize: "12.5px",
-        color: "#9ca3af",
-        marginTop: "2px",
         whiteSpace: "nowrap",
         overflow: "hidden",
         textOverflow: "ellipsis",
@@ -419,15 +580,14 @@ const styles = {
         color: "#fff",
         fontSize: "11px",
         fontWeight: "700",
-        minWidth: "22px",
-        height: "22px",
-        padding: "0 7px",
-        borderRadius: "11px",
+        minWidth: "20px",
+        height: "20px",
+        padding: "0 6px",
+        borderRadius: "10px",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         flexShrink: 0,
-        boxShadow: "0 2px 8px rgba(77,107,254,0.45)",
     },
     bottomProfile: {
         padding: "12px",
