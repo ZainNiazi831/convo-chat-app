@@ -32,13 +32,14 @@ const styles = {
         height: "100vh",
         width: "100vw",
         overflow: "hidden",
-        background: "#f8fafc",
+        background: "var(--bg-secondary)",
+        transition: "background 0.3s ease",
     },
     desktopSidebar: {
         width: "340px",
         height: "100vh",
         flexShrink: 0,
-        borderRight: "1px solid #e5e7eb",
+        borderRight: "1px solid var(--border-color)",
     },
     desktopChat: {
         flex: 1,

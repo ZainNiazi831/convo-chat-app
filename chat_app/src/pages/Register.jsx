@@ -29,8 +29,7 @@ const Register = () => {
 
     const onSubmit = (e) => {
         e.preventDefault();
-        // 🧹 Clear any old userInfo before fresh register
-        localStorage.removeItem("userInfo");
+        localStorage.clear();
         dispatch(register({ name, username, email, password }));
     };
 
@@ -38,10 +37,10 @@ const Register = () => {
         <div style={styles.container}>
             <div style={styles.card}>
                 <div style={styles.logoWrapper}>
-                    <img src="/convo-logo.png" alt="NauChat" style={styles.logoImg} />
+                    <img src="/convo-logo.png" alt="Convo" style={styles.logoImg} />
                 </div>
                 <h2 style={styles.heading}>Create account</h2>
-                <p style={styles.subheading}>Join NauChat to start messaging</p>
+                <p style={styles.subheading}>Join Convo to start messaging</p>
 
                 <form onSubmit={onSubmit} style={styles.form}>
                     <input
@@ -103,19 +102,18 @@ const styles = {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background:
-            "linear-gradient(135deg, #eef2ff 0%, #f8fafc 50%, #fce7f3 100%)",
+        background: "var(--bg-secondary)",
         padding: "20px",
+        transition: "background 0.3s ease",
     },
     card: {
-        background: "#ffffff",
+        background: "var(--bg-modal)",
         padding: "48px 40px",
         borderRadius: "24px",
-        boxShadow:
-            "0 4px 6px -1px rgba(0,0,0,0.05), 0 20px 40px -8px rgba(77,107,254,0.15)",
+        boxShadow: "var(--shadow-lg)",
         width: "100%",
         maxWidth: "420px",
-        border: "1px solid #e2e8f0",
+        border: "1px solid var(--border-color)",
     },
     logoWrapper: {
         display: "flex",
@@ -128,12 +126,12 @@ const styles = {
         fontSize: "26px",
         fontWeight: "700",
         marginBottom: "8px",
-        color: "#0f172a",
+        color: "var(--text-primary)",
         letterSpacing: "-0.5px",
     },
     subheading: {
         textAlign: "center",
-        color: "#64748b",
+        color: "var(--text-secondary)",
         marginBottom: "32px",
         fontSize: "14px",
     },
@@ -141,16 +139,17 @@ const styles = {
     input: {
         padding: "14px 16px",
         borderRadius: "12px",
-        border: "1px solid #e2e8f0",
+        border: "1px solid var(--border-color)",
         fontSize: "15px",
         outline: "none",
-        background: "#f8fafc",
-        color: "#0f172a",
+        background: "var(--bg-input)",
+        color: "var(--text-primary)",
         transition: "all 0.2s",
+        fontFamily: "inherit",
     },
     button: {
         padding: "14px",
-        background: "linear-gradient(135deg, #4d6bfe, #6366f1)",
+        background: "linear-gradient(135deg, var(--accent), var(--accent-hover))",
         color: "#fff",
         border: "none",
         borderRadius: "12px",
@@ -158,15 +157,20 @@ const styles = {
         fontWeight: "600",
         cursor: "pointer",
         marginTop: "8px",
-        boxShadow: "0 4px 12px rgba(77,107,254,0.35)",
+        boxShadow: "var(--shadow-sm)",
+        fontFamily: "inherit",
     },
     bottomText: {
         textAlign: "center",
         marginTop: "24px",
-        color: "#64748b",
+        color: "var(--text-secondary)",
         fontSize: "14px",
     },
-    link: { color: "#4d6bfe", fontWeight: "600", textDecoration: "none" },
+    link: {
+        color: "var(--accent)",
+        fontWeight: "600",
+        textDecoration: "none",
+    },
 };
 
 export default Register;

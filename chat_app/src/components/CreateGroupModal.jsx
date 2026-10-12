@@ -47,18 +47,16 @@ const CreateGroupModal = ({ onClose }) => {
     return (
         <div style={styles.overlay} onClick={onClose}>
             <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-                {/* Header */}
                 <div style={styles.header}>
                     <div style={styles.headerLeft}>
-                        <Users size={20} color="#4d6bfe" strokeWidth={2} />
+                        <Users size={20} color="var(--accent)" strokeWidth={2} />
                         <h2 style={styles.title}>New Group</h2>
                     </div>
                     <button onClick={onClose} style={styles.closeBtn}>
-                        <X size={20} color="#6b7280" strokeWidth={2} />
+                        <X size={20} color="var(--text-secondary)" strokeWidth={2} />
                     </button>
                 </div>
 
-                {/* Group Name Input */}
                 <div style={styles.fieldWrapper}>
                     <label style={styles.label}>Group Name</label>
                     <input
@@ -71,7 +69,6 @@ const CreateGroupModal = ({ onClose }) => {
                     />
                 </div>
 
-                {/* Search */}
                 <div style={styles.fieldWrapper}>
                     <label style={styles.label}>
                         Select Members ({selectedMembers.length} selected)
@@ -79,7 +76,7 @@ const CreateGroupModal = ({ onClose }) => {
                     <div style={styles.searchBox}>
                         <Search
                             size={16}
-                            color="#9ca3af"
+                            color="var(--text-muted)"
                             strokeWidth={2}
                             style={styles.searchIcon}
                         />
@@ -93,7 +90,6 @@ const CreateGroupModal = ({ onClose }) => {
                     </div>
                 </div>
 
-                {/* Users List */}
                 <div style={styles.usersList}>
                     {filteredUsers.length === 0 && (
                         <div style={styles.emptyText}>No users found</div>
@@ -106,7 +102,7 @@ const CreateGroupModal = ({ onClose }) => {
                                 key={u._id}
                                 style={{
                                     ...styles.userItem,
-                                    background: isSelected ? "#eef2ff" : "transparent",
+                                    background: isSelected ? "var(--bg-active)" : "transparent",
                                 }}
                                 onClick={() => toggleMember(u._id)}
                             >
@@ -120,8 +116,8 @@ const CreateGroupModal = ({ onClose }) => {
                                 <div
                                     style={{
                                         ...styles.checkbox,
-                                        background: isSelected ? "#4d6bfe" : "#fff",
-                                        borderColor: isSelected ? "#4d6bfe" : "#cbd5e1",
+                                        background: isSelected ? "var(--accent)" : "var(--bg-primary)",
+                                        borderColor: isSelected ? "var(--accent)" : "var(--border-color)",
                                     }}
                                 >
                                     {isSelected && (
@@ -133,7 +129,6 @@ const CreateGroupModal = ({ onClose }) => {
                     })}
                 </div>
 
-                {/* Footer */}
                 <div style={styles.footer}>
                     <button onClick={onClose} style={styles.cancelBtn}>
                         Cancel
@@ -176,7 +171,7 @@ const styles = {
         padding: "20px",
     },
     modal: {
-        background: "#fff",
+        background: "var(--bg-modal)",
         borderRadius: "16px",
         width: "100%",
         maxWidth: "480px",
@@ -184,14 +179,14 @@ const styles = {
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        boxShadow: "0 25px 60px rgba(0,0,0,0.3)",
+        boxShadow: "var(--shadow-lg)",
     },
     header: {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         padding: "18px 20px",
-        borderBottom: "1px solid #e5e7eb",
+        borderBottom: "1px solid var(--border-color)",
     },
     headerLeft: {
         display: "flex",
@@ -201,7 +196,7 @@ const styles = {
     title: {
         fontSize: "17px",
         fontWeight: "700",
-        color: "#1a1a1a",
+        color: "var(--text-primary)",
     },
     closeBtn: {
         background: "transparent",
@@ -220,7 +215,7 @@ const styles = {
         display: "block",
         fontSize: "12px",
         fontWeight: "600",
-        color: "#64748b",
+        color: "var(--text-secondary)",
         marginBottom: "8px",
         textTransform: "uppercase",
         letterSpacing: "0.5px",
@@ -228,12 +223,13 @@ const styles = {
     input: {
         width: "100%",
         padding: "11px 14px",
-        background: "#f8fafc",
-        border: "1px solid #e2e8f0",
+        background: "var(--bg-input)",
+        border: "1px solid var(--border-color)",
         borderRadius: "10px",
         fontSize: "14px",
-        color: "#1a1a1a",
+        color: "var(--text-primary)",
         outline: "none",
+        fontFamily: "inherit",
     },
     searchBox: {
         position: "relative",
@@ -248,12 +244,13 @@ const styles = {
     searchInput: {
         width: "100%",
         padding: "11px 14px 11px 38px",
-        background: "#f8fafc",
-        border: "1px solid #e2e8f0",
+        background: "var(--bg-input)",
+        border: "1px solid var(--border-color)",
         borderRadius: "10px",
         fontSize: "14px",
-        color: "#1a1a1a",
+        color: "var(--text-primary)",
         outline: "none",
+        fontFamily: "inherit",
     },
     usersList: {
         flex: 1,
@@ -264,7 +261,7 @@ const styles = {
     },
     emptyText: {
         textAlign: "center",
-        color: "#9ca3af",
+        color: "var(--text-muted)",
         fontSize: "13px",
         padding: "30px 20px",
     },
@@ -282,7 +279,7 @@ const styles = {
         width: "40px",
         height: "40px",
         borderRadius: "50%",
-        background: "linear-gradient(135deg, #4d6bfe, #6366f1)",
+        background: "linear-gradient(135deg, var(--accent), var(--accent-hover))",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -298,21 +295,21 @@ const styles = {
     userName: {
         fontSize: "14px",
         fontWeight: "500",
-        color: "#1a1a1a",
+        color: "var(--text-primary)",
         whiteSpace: "nowrap",
         overflow: "hidden",
         textOverflow: "ellipsis",
     },
     userUsername: {
         fontSize: "12px",
-        color: "#9ca3af",
+        color: "var(--text-muted)",
         marginTop: "1px",
     },
     checkbox: {
         width: "22px",
         height: "22px",
         borderRadius: "6px",
-        border: "2px solid #cbd5e1",
+        border: "2px solid var(--border-color)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -323,30 +320,32 @@ const styles = {
         display: "flex",
         gap: "10px",
         padding: "16px 20px",
-        borderTop: "1px solid #e5e7eb",
+        borderTop: "1px solid var(--border-color)",
     },
     cancelBtn: {
         flex: 1,
         padding: "11px",
-        background: "#fff",
-        border: "1px solid #e5e7eb",
+        background: "transparent",
+        border: "1px solid var(--border-color)",
         borderRadius: "10px",
         fontSize: "14px",
         fontWeight: "500",
-        color: "#64748b",
+        color: "var(--text-secondary)",
         cursor: "pointer",
+        fontFamily: "inherit",
     },
     createBtn: {
         flex: 1,
         padding: "11px",
-        background: "linear-gradient(135deg, #4d6bfe, #6366f1)",
+        background: "linear-gradient(135deg, var(--accent), var(--accent-hover))",
         border: "none",
         borderRadius: "10px",
         fontSize: "14px",
         fontWeight: "600",
         color: "#fff",
-        boxShadow: "0 2px 8px rgba(77,107,254,0.35)",
+        boxShadow: "var(--shadow-sm)",
         transition: "opacity 0.15s",
+        fontFamily: "inherit",
     },
 };
 
