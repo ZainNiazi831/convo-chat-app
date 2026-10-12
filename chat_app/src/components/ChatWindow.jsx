@@ -26,7 +26,6 @@ import {
     toggleFavouriteThunk,
     clearChatThunk,
     toggleMuteThunk,
-    fetchConversations,
     optimisticToggleFavourite,
 } from "../redux/chatSlice";
 import { useSocket } from "../context/SocketContext";
@@ -42,9 +41,8 @@ const ChatWindow = () => {
     const dispatch = useDispatch();
     const { socket } = useSocket();
     const isMobile = useIsMobile();
-    const { selectedConversation, messages, isSending } = useSelector(
-        (state) => state.chat
-    );
+    const { selectedConversation, messages, isSending, conversations } =
+        useSelector((state) => state.chat);
     const { user } = useSelector((state) => state.auth);
     const [text, setText] = useState("");
     const [isTyping, setIsTyping] = useState(false);
@@ -58,11 +56,22 @@ const ChatWindow = () => {
     const [infoMessage, setInfoMessage] = useState(null);
     const [emojiPicker, setEmojiPicker] = useState(null);
     const [hoveredMsgId, setHoveredMsgId] = useState(null);
-    const [chatMenu, setChatMenu] = useState(null); // { x, y }
+    const [chatMenu, setChatMenu] = useState(null);
     const [clearConfirm, setClearConfirm] = useState(false);
     const messagesEndRef = useRef(null);
     const typingTimeoutRef = useRef(null);
     const inputRef = useRef(null);
+
+    const currentUserId = user?._id || user?.id;
+
+    // ⭐ Get fresh favourite state from Redux conversations
+    const currentConv = conversations.find(
+        (c) => c._id === selectedConversation?._id
+    );
+    const isFavourite = currentConv?.favourites?.some(
+        (id) => String(id) === String(currentUserId)
+    );
+    const isMuted = currentConv?._muted || false;
 
     // Auto-scroll
     useEffect(() => {
@@ -72,8 +81,6 @@ const ChatWindow = () => {
     // Mark delivered + read when chat opens
     useEffect(() => {
         if (!selectedConversation || !socket || !user) return;
-
-        const currentUserId = user._id || user.id;
 
         socket.emit("messagesDelivered", {
             conversationId: selectedConversation._id,
@@ -106,19 +113,17 @@ const ChatWindow = () => {
                 },
             }
         ).catch(() => { });
-    }, [selectedConversation, socket, user]);
+    }, [selectedConversation, socket, user, currentUserId]);
 
     // Listen typing + read + delivered
     useEffect(() => {
         if (!socket || !user) return;
 
         const handleUserTyping = ({ userId }) => {
-            const currentUserId = user._id || user.id;
             if (String(userId) !== String(currentUserId)) setOtherUserTyping(true);
         };
 
         const handleUserStoppedTyping = ({ userId }) => {
-            const currentUserId = user._id || user.id;
             if (String(userId) !== String(currentUserId)) setOtherUserTyping(false);
         };
 
@@ -127,7 +132,7 @@ const ChatWindow = () => {
             const ownIds = messages
                 .filter((m) => {
                     const sid = typeof m.sender === "object" ? m.sender?._id : m.sender;
-                    return String(sid) === String(user._id || user.id);
+                    return String(sid) === String(currentUserId);
                 })
                 .map((m) => m._id);
             setReadMessages(new Set(ownIds));
@@ -143,7 +148,7 @@ const ChatWindow = () => {
                     .filter((m) => {
                         const sid =
                             typeof m.sender === "object" ? m.sender?._id : m.sender;
-                        return String(sid) === String(user._id || user.id);
+                        return String(sid) === String(currentUserId);
                     })
                     .map((m) => m._id);
                 setDeliveredMessages(new Set(ownIds));
@@ -161,7 +166,7 @@ const ChatWindow = () => {
             socket.off("messagesRead", handleMessagesRead);
             socket.off("messagesDelivered", handleMessagesDelivered);
         };
-    }, [socket, user, selectedConversation, messages]);
+    }, [socket, user, selectedConversation, messages, currentUserId]);
 
     useEffect(() => {
         setOtherUserTyping(false);
@@ -187,7 +192,6 @@ const ChatWindow = () => {
         );
     }
 
-    const currentUserId = user?._id || user?.id;
     const isGroup = selectedConversation.type === "group";
 
     const otherUser = !isGroup
@@ -253,11 +257,7 @@ const ChatWindow = () => {
     const handleContextMenu = (e, msg) => {
         e.preventDefault();
         if (msg.isDeleted) return;
-        setMenuState({
-            x: e.clientX,
-            y: e.clientY,
-            message: msg,
-        });
+        setMenuState({ x: e.clientX, y: e.clientY, message: msg });
     };
 
     const handleCopy = () => {
@@ -300,14 +300,9 @@ const ChatWindow = () => {
         }
     };
 
-    // 🔥 Reaction toggle
     const handleReaction = async (emoji, messageId) => {
         setEmojiPicker(null);
-
-        const result = await dispatch(
-            toggleReaction({ messageId, emoji })
-        );
-
+        const result = await dispatch(toggleReaction({ messageId, emoji }));
         if (result.meta.requestStatus === "fulfilled" && socket) {
             socket.emit("messageReacted", {
                 conversationId: selectedConversation._id,
@@ -316,14 +311,12 @@ const ChatWindow = () => {
         }
     };
 
-    // 🔥 Check if current user reacted with a specific emoji
     const hasUserReacted = (msg, emoji) => {
         if (!msg.reactions) return false;
         const users = msg.reactions[emoji] || msg.reactions.get?.(emoji) || [];
         return users.some((id) => String(id) === String(currentUserId));
     };
 
-    // 🔥 Get reactions list from message
     const getReactions = (msg) => {
         if (!msg.reactions) return [];
         const entries = msg.reactions.entries
@@ -532,7 +525,6 @@ const ChatWindow = () => {
                                 onMouseEnter={() => setHoveredMsgId(msg._id)}
                                 onMouseLeave={() => setHoveredMsgId(null)}
                             >
-                                {/* Emoji trigger button (hover) */}
                                 {showEmojiButton && (
                                     <button
                                         onClick={(e) => {
@@ -579,7 +571,6 @@ const ChatWindow = () => {
                                         <div style={styles.senderName}>{senderName}</div>
                                     )}
 
-                                    {/* Reply preview */}
                                     {msg.replyTo && !isDeleted && (
                                         <div
                                             style={{
@@ -643,7 +634,6 @@ const ChatWindow = () => {
                                         </>
                                     )}
 
-                                    {/* Reactions display */}
                                     {reactions.length > 0 && (
                                         <div
                                             style={{
@@ -762,39 +752,7 @@ const ChatWindow = () => {
                 />
             )}
 
-            {/* Context Menu */}
-            {menuState && (
-                <MessageMenu
-                    x={menuState.x}
-                    y={menuState.y}
-                    isOwn={isOwnMessage(menuState.message)}
-                    message={menuState.message}
-                    onCopy={handleCopy}
-                    onReply={handleReply}
-                    onInfo={handleInfo}
-                    onDeleteForMe={handleDeleteForMe}
-                    onDeleteForEveryone={handleDeleteForEveryone}
-                    onClose={() => setMenuState(null)}
-                />
-            )}
-
-            {/* Message Info Modal */}
-            {infoMessage && (
-                <MessageInfoModal
-                    message={infoMessage}
-                    onClose={() => setInfoMessage(null)}
-                />
-            )}
-
-            {/* Group Info Modal */}
-            {showGroupInfo && isGroup && (
-                <GroupInfoModal
-                    group={selectedConversation}
-                    onClose={() => setShowGroupInfo(false)}
-                    onRemoveMember={handleRemoveMember}
-                />
-            )}
-            {/* Chat 3-dot menu */}
+            {/* Chat 3-dot Menu */}
             {chatMenu && (
                 <div
                     style={{
@@ -813,14 +771,14 @@ const ChatWindow = () => {
                 >
                     <button
                         onClick={() => {
-                            // 🔥 Optimistic update — instant UI change
+                            // ⚡ INSTANT optimistic update
                             dispatch(
                                 optimisticToggleFavourite({
                                     conversationId: selectedConversation._id,
                                     userId: currentUserId,
                                 })
                             );
-                            // Backend call in background
+                            // Backend save in background
                             dispatch(
                                 toggleFavouriteThunk({
                                     conversationId: selectedConversation._id,
@@ -849,26 +807,16 @@ const ChatWindow = () => {
                             size={18}
                             color="#f59e0b"
                             strokeWidth={2}
-                            fill={
-                                selectedConversation.favourites?.some(
-                                    (id) => String(id) === String(currentUserId)
-                                )
-                                    ? "#f59e0b"
-                                    : "none"
-                            }
+                            fill={isFavourite ? "#f59e0b" : "none"}
                         />
                         <span>
-                            {selectedConversation.favourites?.some(
-                                (id) => String(id) === String(currentUserId)
-                            )
-                                ? "Remove from favourites"
-                                : "Add to favourites"}
+                            {isFavourite ? "Remove from favourites" : "Add to favourites"}
                         </span>
                     </button>
 
                     <button
-                        onClick={async () => {
-                            await dispatch(toggleMuteThunk(selectedConversation._id));
+                        onClick={() => {
+                            dispatch(toggleMuteThunk(selectedConversation._id));
                             setChatMenu(null);
                         }}
                         style={{
@@ -888,7 +836,7 @@ const ChatWindow = () => {
                         }}
                     >
                         <BellOff size={18} color="#6b7280" strokeWidth={2} />
-                        <span>Mute notifications</span>
+                        <span>{isMuted ? "Unmute notifications" : "Mute notifications"}</span>
                     </button>
 
                     <div
@@ -947,7 +895,7 @@ const ChatWindow = () => {
                 </div>
             )}
 
-            {/* Clear chat confirm */}
+            {/* Clear Chat Confirm */}
             {clearConfirm && (
                 <div
                     style={{
@@ -996,15 +944,9 @@ const ChatWindow = () => {
                         >
                             Clear chat?
                         </h3>
-                        <p
-                            style={{
-                                fontSize: "14px",
-                                color: "#64748b",
-                                marginBottom: "20px",
-                            }}
-                        >
-                            This will clear all messages in this chat for you. Other members will
-                            still see them.
+                        <p style={{ fontSize: "14px", color: "#64748b", marginBottom: "20px" }}>
+                            This will clear all messages in this chat for you. Other members
+                            will still see them.
                         </p>
                         <div style={{ display: "flex", gap: "10px" }}>
                             <button
@@ -1047,6 +989,39 @@ const ChatWindow = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Context Menu */}
+            {menuState && (
+                <MessageMenu
+                    x={menuState.x}
+                    y={menuState.y}
+                    isOwn={isOwnMessage(menuState.message)}
+                    message={menuState.message}
+                    onCopy={handleCopy}
+                    onReply={handleReply}
+                    onInfo={handleInfo}
+                    onDeleteForMe={handleDeleteForMe}
+                    onDeleteForEveryone={handleDeleteForEveryone}
+                    onClose={() => setMenuState(null)}
+                />
+            )}
+
+            {/* Message Info Modal */}
+            {infoMessage && (
+                <MessageInfoModal
+                    message={infoMessage}
+                    onClose={() => setInfoMessage(null)}
+                />
+            )}
+
+            {/* Group Info Modal */}
+            {showGroupInfo && isGroup && (
+                <GroupInfoModal
+                    group={selectedConversation}
+                    onClose={() => setShowGroupInfo(false)}
+                    onRemoveMember={handleRemoveMember}
+                />
             )}
 
             {/* Delete Conversation Confirmation */}

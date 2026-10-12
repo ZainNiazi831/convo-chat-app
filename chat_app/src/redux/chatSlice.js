@@ -101,7 +101,7 @@ export const fetchMessages = createAsyncThunk(
     }
 );
 
-// ─── SEND MESSAGE (with reply support) ───
+// ─── SEND MESSAGE ───
 export const sendMessage = createAsyncThunk(
     "chat/sendMessage",
     async ({ conversationId, text, replyTo }, thunkAPI) => {
@@ -155,6 +155,7 @@ export const deleteMessageForEveryone = createAsyncThunk(
         }
     }
 );
+
 // ─── TOGGLE REACTION ───
 export const toggleReaction = createAsyncThunk(
     "chat/toggleReaction",
@@ -207,7 +208,8 @@ export const deleteConversationThunk = createAsyncThunk(
         }
     }
 );
-// ─── TOGGLE FAVOURITE (Optimistic) ───
+
+// ─── TOGGLE FAVOURITE ───
 export const toggleFavouriteThunk = createAsyncThunk(
     "chat/toggleFavourite",
     async ({ conversationId, userId }, thunkAPI) => {
@@ -221,8 +223,6 @@ export const toggleFavouriteThunk = createAsyncThunk(
                 error.response?.data?.message ||
                 error.message ||
                 "Failed to toggle favourite";
-            // Revert on failure
-            thunkAPI.dispatch(revertFavourite({ conversationId, userId }));
             return thunkAPI.rejectWithValue(message);
         }
     }
@@ -353,7 +353,6 @@ const chatSlice = createSlice({
                 delete state.unreadCounts[userId];
             }
         },
-        // Real-time delete for everyone
         markMessageDeleted: (state, action) => {
             const updatedMessage = action.payload;
             const index = state.messages.findIndex(
@@ -366,7 +365,6 @@ const chatSlice = createSlice({
                 };
             }
         },
-        // Real-time reaction update from socket
         markMessageReacted: (state, action) => {
             const updatedMessage = action.payload;
             const index = state.messages.findIndex(
@@ -379,58 +377,29 @@ const chatSlice = createSlice({
                 };
             }
         },
-        // Optimistic favourite update
+        // ⚡ Optimistic favourite toggle — INSTANT UI update
         optimisticToggleFavourite: (state, action) => {
             const { conversationId, userId } = action.payload;
             const index = state.conversations.findIndex(
                 (c) => c._id === conversationId
             );
-            if (index !== -1) {
-                const conv = state.conversations[index];
-                const favourites = conv.favourites || [];
-                const isFav = favourites.some((id) => String(id) === String(userId));
+            if (index === -1) return;
 
-                if (isFav) {
-                    state.conversations[index] = {
-                        ...conv,
-                        favourites: favourites.filter((id) => String(id) !== String(userId)),
-                    };
-                } else {
-                    state.conversations[index] = {
-                        ...conv,
-                        favourites: [...favourites, userId],
-                    };
-                }
-            }
-        },
-        // Revert if API fails
-        revertFavourite: (state, action) => {
-            const { conversationId, userId } = action.payload;
-            const index = state.conversations.findIndex(
-                (c) => c._id === conversationId
-            );
-            if (index !== -1) {
-                const conv = state.conversations[index];
-                const favourites = conv.favourites || [];
-                const isFav = favourites.some((id) => String(id) === String(userId));
+            const conv = state.conversations[index];
+            const favourites = Array.isArray(conv.favourites) ? conv.favourites : [];
+            const isFav = favourites.some((id) => String(id) === String(userId));
 
-                if (isFav) {
-                    state.conversations[index] = {
-                        ...conv,
-                        favourites: favourites.filter((id) => String(id) !== String(userId)),
-                    };
-                } else {
-                    state.conversations[index] = {
-                        ...conv,
-                        favourites: [...favourites, userId],
-                    };
-                }
-            }
+            state.conversations[index] = {
+                ...conv,
+                favourites: isFav
+                    ? favourites.filter((id) => String(id) !== String(userId))
+                    : [...favourites, userId],
+            };
         },
     },
     extraReducers: (builder) => {
         builder
-            // ─── Fetch Users ───
+            // Fetch Users
             .addCase(fetchUsers.pending, (state) => {
                 state.isLoading = true;
             })
@@ -443,11 +412,11 @@ const chatSlice = createSlice({
                 state.isError = true;
                 state.message = action.payload;
             })
-            // ─── Search Users ───
+            // Search Users
             .addCase(searchUsers.fulfilled, (state, action) => {
                 state.users = action.payload;
             })
-            // ─── Create Private Conversation ───
+            // Create Private
             .addCase(createConversation.pending, (state) => {
                 state.isLoading = true;
             })
@@ -461,7 +430,7 @@ const chatSlice = createSlice({
                 state.isError = true;
                 state.message = action.payload;
             })
-            // ─── Create Group Conversation ───
+            // Create Group
             .addCase(createGroupConversation.pending, (state) => {
                 state.isLoading = true;
             })
@@ -476,11 +445,11 @@ const chatSlice = createSlice({
                 state.isError = true;
                 state.message = action.payload;
             })
-            // ─── Fetch Messages ───
+            // Fetch Messages
             .addCase(fetchMessages.fulfilled, (state, action) => {
                 state.messages = action.payload;
             })
-            // ─── Send Message ───
+            // Send Message
             .addCase(sendMessage.pending, (state) => {
                 state.isSending = true;
             })
@@ -496,12 +465,12 @@ const chatSlice = createSlice({
                 state.isError = true;
                 state.message = action.payload;
             })
-            // ─── Delete for Me ───
+            // Delete for Me
             .addCase(deleteMessageForMe.fulfilled, (state, action) => {
                 const deletedId = action.payload;
                 state.messages = state.messages.filter((m) => m._id !== deletedId);
             })
-            // ─── Delete for Everyone ───
+            // Delete for Everyone
             .addCase(deleteMessageForEveryone.fulfilled, (state, action) => {
                 const updated = action.payload;
                 const index = state.messages.findIndex((m) => m._id === updated._id);
@@ -509,12 +478,37 @@ const chatSlice = createSlice({
                     state.messages[index] = { ...state.messages[index], ...updated };
                 }
             })
-            // Toggle Favourite
+            // Toggle Reaction
+            .addCase(toggleReaction.fulfilled, (state, action) => {
+                const updated = action.payload;
+                const index = state.messages.findIndex((m) => m._id === updated._id);
+                if (index !== -1) {
+                    state.messages[index] = { ...state.messages[index], ...updated };
+                }
+            })
+            // Fetch Unread Counts
+            .addCase(fetchUnreadCounts.fulfilled, (state, action) => {
+                state.unreadCounts = action.payload;
+            })
+            // Delete Conversation
+            .addCase(deleteConversationThunk.fulfilled, (state, action) => {
+                const deletedId = action.payload;
+                state.conversations = state.conversations.filter(
+                    (c) => c._id !== deletedId
+                );
+                if (state.selectedConversation?._id === deletedId) {
+                    state.selectedConversation = null;
+                    state.messages = [];
+                    state.showSidebarOnMobile = true;
+                }
+            })
+            // Toggle Favourite — server confirm
             .addCase(toggleFavouriteThunk.fulfilled, (state, action) => {
                 const updated = action.payload;
-                const index = state.conversations.findIndex((c) => c._id === updated._id);
+                const index = state.conversations.findIndex(
+                    (c) => c._id === updated._id
+                );
                 if (index !== -1) {
-                    // Preserve existing data + update with server response
                     state.conversations[index] = {
                         ...state.conversations[index],
                         favourites: updated.favourites,
@@ -527,7 +521,6 @@ const chatSlice = createSlice({
                 if (state.selectedConversation?._id === convId) {
                     state.messages = [];
                 }
-                // Update conversations list
                 const index = state.conversations.findIndex((c) => c._id === convId);
                 if (index !== -1) {
                     state.conversations[index].lastMessage = null;
@@ -536,7 +529,9 @@ const chatSlice = createSlice({
             // Toggle Mute
             .addCase(toggleMuteThunk.fulfilled, (state, action) => {
                 const { conversationId, muted } = action.payload;
-                const index = state.conversations.findIndex((c) => c._id === conversationId);
+                const index = state.conversations.findIndex(
+                    (c) => c._id === conversationId
+                );
                 if (index !== -1) {
                     state.conversations[index] = {
                         ...state.conversations[index],
@@ -544,38 +539,14 @@ const chatSlice = createSlice({
                     };
                 }
             })
-            // ─── Toggle Reaction ───
-            .addCase(toggleReaction.fulfilled, (state, action) => {
-                const updated = action.payload;
-                const index = state.messages.findIndex((m) => m._id === updated._id);
-                if (index !== -1) {
-                    state.messages[index] = { ...state.messages[index], ...updated };
-                }
-            })
-            // ─── Fetch Unread Counts ───
-            .addCase(fetchUnreadCounts.fulfilled, (state, action) => {
-                state.unreadCounts = action.payload;
-            })
-            // ─── Delete Conversation ───
-            .addCase(deleteConversationThunk.fulfilled, (state, action) => {
-                const deletedId = action.payload;
-                state.conversations = state.conversations.filter(
-                    (c) => c._id !== deletedId
-                );
-                if (state.selectedConversation?._id === deletedId) {
-                    state.selectedConversation = null;
-                    state.messages = [];
-                    state.showSidebarOnMobile = true;
-                }
-            })
-            // ─── Mark as Read ───
+            // Mark as Read
             .addCase(markConversationRead.fulfilled, (state, action) => {
                 const otherUserId = action.payload;
                 if (otherUserId) {
                     delete state.unreadCounts[otherUserId];
                 }
             })
-            // ─── Fetch Conversations ───
+            // Fetch Conversations
             .addCase(fetchConversations.fulfilled, (state, action) => {
                 state.conversations = action.payload;
             });
@@ -592,7 +563,6 @@ export const {
     markMessageDeleted,
     markMessageReacted,
     optimisticToggleFavourite,
-    revertFavourite,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;
