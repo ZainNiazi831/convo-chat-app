@@ -77,8 +77,9 @@ export const createConversation = async (req, res) => {
             groupAdmin: req.user._id,
         });
 
-        conversation = await conversation.populate("members", "-password");
-        conversation = await conversation.populate("groupAdmin", "-password");
+        conversation = await conversation
+            .populate("members", "-password")
+            .populate("groupAdmin", "-password");
 
         res.status(201).json(conversation);
     } catch (error) {
@@ -181,8 +182,9 @@ export const addMembersToGroup = async (req, res) => {
         conversation.members.push(...newMembers);
         await conversation.save();
 
-        conversation = await conversation.populate("members", "-password");
-        conversation = await conversation.populate("groupAdmin", "-password");
+        conversation = await conversation
+            .populate("members", "-password")
+            .populate("groupAdmin", "-password");
 
         res.json(conversation);
     } catch (error) {
@@ -218,8 +220,9 @@ export const removeMemberFromGroup = async (req, res) => {
         );
         await conversation.save();
 
-        conversation = await conversation.populate("members", "-password");
-        conversation = await conversation.populate("groupAdmin", "-password");
+        conversation = await conversation
+            .populate("members", "-password")
+            .populate("groupAdmin", "-password");
 
         res.json(conversation);
     } catch (error) {
@@ -253,8 +256,9 @@ export const updateGroupName = async (req, res) => {
         conversation.name = name;
         await conversation.save();
 
-        conversation = await conversation.populate("members", "-password");
-        conversation = await conversation.populate("groupAdmin", "-password");
+        conversation = await conversation
+            .populate("members", "-password")
+            .populate("groupAdmin", "-password");
 
         res.json(conversation);
     } catch (error) {
@@ -274,26 +278,33 @@ export const toggleFavourite = async (req, res) => {
         }
 
         const userId = req.user._id;
+
+        // Ensure favourites array exists
+        if (!Array.isArray(conversation.favourites)) {
+            conversation.favourites = [];
+        }
+
         const isFav = conversation.favourites.some(
-            (id) => id.toString() === userId.toString()
+            (id) => String(id) === String(userId)
         );
 
         if (isFav) {
             conversation.favourites = conversation.favourites.filter(
-                (id) => id.toString() !== userId.toString()
+                (id) => String(id) !== String(userId)
             );
         } else {
             conversation.favourites.push(userId);
         }
 
+        conversation.markModified("favourites");
         await conversation.save();
 
-        const populated = await conversation
-            .populate("members", "-password")
-            .populate({
-                path: "lastMessage",
-                populate: { path: "sender", select: "name username" },
-            });
+        // ✅ FIX: Populate sequentially (not chained)
+        let populated = await conversation.populate("members", "-password");
+        populated = await populated.populate({
+            path: "lastMessage",
+            populate: { path: "sender", select: "name username" },
+        });
 
         res.json(populated);
     } catch (error) {
