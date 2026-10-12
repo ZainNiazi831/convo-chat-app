@@ -262,3 +262,110 @@ export const updateGroupName = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+// @desc    Toggle favourite for conversation
+// @route   PUT /api/conversations/:id/favourite
+// @access  Private
+export const toggleFavourite = async (req, res) => {
+    try {
+        const conversation = await Conversation.findById(req.params.id);
+
+        if (!conversation) {
+            return res.status(404).json({ message: "Conversation not found" });
+        }
+
+        const userId = req.user._id;
+        const isFav = conversation.favourites.some(
+            (id) => id.toString() === userId.toString()
+        );
+
+        if (isFav) {
+            conversation.favourites = conversation.favourites.filter(
+                (id) => id.toString() !== userId.toString()
+            );
+        } else {
+            conversation.favourites.push(userId);
+        }
+
+        await conversation.save();
+
+        const populated = await conversation
+            .populate("members", "-password")
+            .populate({
+                path: "lastMessage",
+                populate: { path: "sender", select: "name username" },
+            });
+
+        res.json(populated);
+    } catch (error) {
+        console.error("toggleFavourite error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Clear all messages in conversation (for me)
+// @route   PUT /api/conversations/:id/clear
+// @access  Private
+export const clearChat = async (req, res) => {
+    try {
+        const conversation = await Conversation.findById(req.params.id);
+
+        if (!conversation) {
+            return res.status(404).json({ message: "Conversation not found" });
+        }
+
+        const userId = req.user._id;
+        const Message = (await import("../models/Message.js")).default;
+
+        // Mark all messages as deleted for this user
+        await Message.updateMany(
+            { conversation: conversation._id },
+            { $addToSet: { deletedFor: userId } }
+        );
+
+        // Clear lastMessage if user is not admin
+        await Conversation.findByIdAndUpdate(conversation._id, {
+            lastMessage: null,
+        });
+
+        res.json({ message: "Chat cleared for you" });
+    } catch (error) {
+        console.error("clearChat error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Mute/unmute conversation
+// @route   PUT /api/conversations/:id/mute
+// @access  Private
+export const toggleMute = async (req, res) => {
+    try {
+        const conversation = await Conversation.findById(req.params.id);
+
+        if (!conversation) {
+            return res.status(404).json({ message: "Conversation not found" });
+        }
+
+        const userId = req.user._id;
+        const isMuted = conversation.mutedBy.some(
+            (id) => id.toString() === userId.toString()
+        );
+
+        if (isMuted) {
+            conversation.mutedBy = conversation.mutedBy.filter(
+                (id) => id.toString() !== userId.toString()
+            );
+        } else {
+            conversation.mutedBy.push(userId);
+        }
+
+        await conversation.save();
+
+        res.json({
+            message: isMuted ? "Unmuted" : "Muted",
+            muted: !isMuted,
+        });
+    } catch (error) {
+        console.error("toggleMute error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};

@@ -33,6 +33,20 @@ const conversationSchema = new mongoose.Schema(
             ref: "Message",
             default: null,
         },
+        // ⭐ Favourites per user
+        favourites: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User",
+            },
+        ],
+        // 🔕 Muted per user
+        mutedBy: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User",
+            },
+        ],
     },
     { timestamps: true }
 );

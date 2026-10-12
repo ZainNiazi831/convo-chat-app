@@ -29,7 +29,6 @@ const messageSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
-        // Delete for everyone
         isDeleted: {
             type: Boolean,
             default: false,
@@ -38,20 +37,17 @@ const messageSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
-        // Delete for me (per user)
         deletedFor: [
             {
                 type: mongoose.Schema.Types.ObjectId,
                 ref: "User",
             },
         ],
-        // 🔥 Reply support
         replyTo: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Message",
             default: null,
         },
-        // 🔥 Reactions (emoji → [userIds])
         reactions: {
             type: Map,
             of: [mongoose.Schema.Types.ObjectId],

@@ -207,6 +207,60 @@ export const deleteConversationThunk = createAsyncThunk(
         }
     }
 );
+// ─── TOGGLE FAVOURITE ───
+export const toggleFavouriteThunk = createAsyncThunk(
+    "chat/toggleFavourite",
+    async (conversationId, thunkAPI) => {
+        try {
+            const response = await API.put(
+                `/conversations/${conversationId}/favourite`
+            );
+            return response.data;
+        } catch (error) {
+            const message =
+                error.response?.data?.message ||
+                error.message ||
+                "Failed to toggle favourite";
+            return thunkAPI.rejectWithValue(message);
+        }
+    }
+);
+
+// ─── CLEAR CHAT ───
+export const clearChatThunk = createAsyncThunk(
+    "chat/clearChat",
+    async (conversationId, thunkAPI) => {
+        try {
+            await API.put(`/conversations/${conversationId}/clear`);
+            return conversationId;
+        } catch (error) {
+            const message =
+                error.response?.data?.message ||
+                error.message ||
+                "Failed to clear chat";
+            return thunkAPI.rejectWithValue(message);
+        }
+    }
+);
+
+// ─── TOGGLE MUTE ───
+export const toggleMuteThunk = createAsyncThunk(
+    "chat/toggleMute",
+    async (conversationId, thunkAPI) => {
+        try {
+            const response = await API.put(
+                `/conversations/${conversationId}/mute`
+            );
+            return { conversationId, muted: response.data.muted };
+        } catch (error) {
+            const message =
+                error.response?.data?.message ||
+                error.message ||
+                "Failed to toggle mute";
+            return thunkAPI.rejectWithValue(message);
+        }
+    }
+);
 
 // ─── MARK AS READ ───
 export const markConversationRead = createAsyncThunk(
@@ -403,6 +457,40 @@ const chatSlice = createSlice({
                 const index = state.messages.findIndex((m) => m._id === updated._id);
                 if (index !== -1) {
                     state.messages[index] = { ...state.messages[index], ...updated };
+                }
+            })
+            // Toggle Favourite
+            .addCase(toggleFavouriteThunk.fulfilled, (state, action) => {
+                const updated = action.payload;
+                const index = state.conversations.findIndex((c) => c._id === updated._id);
+                if (index !== -1) {
+                    state.conversations[index] = updated;
+                }
+            })
+            // Clear Chat
+            .addCase(clearChatThunk.fulfilled, (state, action) => {
+                const convId = action.payload;
+                if (state.selectedConversation?._id === convId) {
+                    state.messages = [];
+                }
+                // Update conversations list
+                const index = state.conversations.findIndex((c) => c._id === convId);
+                if (index !== -1) {
+                    state.conversations[index].lastMessage = null;
+                }
+            })
+            // Toggle Mute
+            .addCase(toggleMuteThunk.fulfilled, (state, action) => {
+                const { conversationId, muted } = action.payload;
+                const index = state.conversations.findIndex((c) => c._id === conversationId);
+                if (index !== -1) {
+                    const conv = state.conversations[index];
+                    const userId = state.currentUserId;
+                    // Just update a flag in state for UI
+                    state.conversations[index] = {
+                        ...conv,
+                        _muted: muted,
+                    };
                 }
             })
             // ─── Toggle Reaction ───

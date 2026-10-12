@@ -11,6 +11,10 @@ import {
     X,
     Reply as ReplyIcon,
     Smile,
+    MoreVertical,
+    Star,
+    Eraser,
+    BellOff,
 } from "lucide-react";
 import {
     sendMessage,
@@ -19,6 +23,9 @@ import {
     deleteMessageForMe,
     deleteMessageForEveryone,
     toggleReaction,
+    toggleFavouriteThunk,
+    clearChatThunk,
+    toggleMuteThunk,
 } from "../redux/chatSlice";
 import { useSocket } from "../context/SocketContext";
 import useIsMobile from "../hooks/useIsMobile";
@@ -49,6 +56,8 @@ const ChatWindow = () => {
     const [infoMessage, setInfoMessage] = useState(null);
     const [emojiPicker, setEmojiPicker] = useState(null);
     const [hoveredMsgId, setHoveredMsgId] = useState(null);
+    const [chatMenu, setChatMenu] = useState(null); // { x, y }
+    const [clearConfirm, setClearConfirm] = useState(false);
     const messagesEndRef = useRef(null);
     const typingTimeoutRef = useRef(null);
     const inputRef = useRef(null);
@@ -480,11 +489,18 @@ const ChatWindow = () => {
                 </div>
 
                 <button
-                    onClick={() => setShowDeleteConfirm(true)}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setChatMenu({
+                            x: rect.right - 220,
+                            y: rect.bottom + 8,
+                        });
+                    }}
                     style={styles.menuBtn}
-                    title="Delete conversation"
+                    title="Chat menu"
                 >
-                    <Trash2 size={18} color="#ef4444" strokeWidth={2} />
+                    <MoreVertical size={20} color="#6b7280" strokeWidth={2} />
                 </button>
             </div>
 
@@ -775,6 +791,247 @@ const ChatWindow = () => {
                     onClose={() => setShowGroupInfo(false)}
                     onRemoveMember={handleRemoveMember}
                 />
+            )}
+            {/* Chat 3-dot menu */}
+            {chatMenu && (
+                <div
+                    style={{
+                        position: "fixed",
+                        top: chatMenu.y,
+                        left: chatMenu.x,
+                        background: "#fff",
+                        borderRadius: "12px",
+                        boxShadow: "0 10px 40px rgba(0,0,0,0.25)",
+                        padding: "6px",
+                        zIndex: 2500,
+                        minWidth: "220px",
+                        border: "1px solid #e5e7eb",
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <button
+                        onClick={async () => {
+                            await dispatch(toggleFavouriteThunk(selectedConversation._id));
+                            setChatMenu(null);
+                        }}
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "12px",
+                            width: "100%",
+                            padding: "11px 14px",
+                            background: "transparent",
+                            border: "none",
+                            borderRadius: "8px",
+                            cursor: "pointer",
+                            fontSize: "14px",
+                            color: "#1a1a1a",
+                            fontFamily: "inherit",
+                            textAlign: "left",
+                        }}
+                    >
+                        <Star
+                            size={18}
+                            color="#f59e0b"
+                            strokeWidth={2}
+                            fill={
+                                selectedConversation.favourites?.some(
+                                    (id) => String(id) === String(currentUserId)
+                                )
+                                    ? "#f59e0b"
+                                    : "none"
+                            }
+                        />
+                        <span>
+                            {selectedConversation.favourites?.some(
+                                (id) => String(id) === String(currentUserId)
+                            )
+                                ? "Remove from favourites"
+                                : "Add to favourites"}
+                        </span>
+                    </button>
+
+                    <button
+                        onClick={async () => {
+                            await dispatch(toggleMuteThunk(selectedConversation._id));
+                            setChatMenu(null);
+                        }}
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "12px",
+                            width: "100%",
+                            padding: "11px 14px",
+                            background: "transparent",
+                            border: "none",
+                            borderRadius: "8px",
+                            cursor: "pointer",
+                            fontSize: "14px",
+                            color: "#1a1a1a",
+                            fontFamily: "inherit",
+                            textAlign: "left",
+                        }}
+                    >
+                        <BellOff size={18} color="#6b7280" strokeWidth={2} />
+                        <span>Mute notifications</span>
+                    </button>
+
+                    <div
+                        style={{ height: "1px", background: "#e5e7eb", margin: "4px 0" }}
+                    />
+
+                    <button
+                        onClick={() => {
+                            setClearConfirm(true);
+                            setChatMenu(null);
+                        }}
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "12px",
+                            width: "100%",
+                            padding: "11px 14px",
+                            background: "transparent",
+                            border: "none",
+                            borderRadius: "8px",
+                            cursor: "pointer",
+                            fontSize: "14px",
+                            color: "#ef4444",
+                            fontFamily: "inherit",
+                            textAlign: "left",
+                        }}
+                    >
+                        <Eraser size={18} color="#ef4444" strokeWidth={2} />
+                        <span>Clear chat</span>
+                    </button>
+
+                    <button
+                        onClick={() => {
+                            setShowDeleteConfirm(true);
+                            setChatMenu(null);
+                        }}
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "12px",
+                            width: "100%",
+                            padding: "11px 14px",
+                            background: "transparent",
+                            border: "none",
+                            borderRadius: "8px",
+                            cursor: "pointer",
+                            fontSize: "14px",
+                            color: "#ef4444",
+                            fontFamily: "inherit",
+                            textAlign: "left",
+                        }}
+                    >
+                        <Trash2 size={18} color="#ef4444" strokeWidth={2} />
+                        <span>Delete chat</span>
+                    </button>
+                </div>
+            )}
+
+            {/* Clear chat confirm */}
+            {clearConfirm && (
+                <div
+                    style={{
+                        position: "fixed",
+                        inset: 0,
+                        background: "rgba(15, 23, 42, 0.6)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        zIndex: 3000,
+                    }}
+                    onClick={() => setClearConfirm(false)}
+                >
+                    <div
+                        style={{
+                            background: "#fff",
+                            borderRadius: "16px",
+                            padding: "24px",
+                            maxWidth: "360px",
+                            width: "90%",
+                            textAlign: "center",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div
+                            style={{
+                                width: "56px",
+                                height: "56px",
+                                borderRadius: "50%",
+                                background: "#fee2e2",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                margin: "0 auto 16px auto",
+                            }}
+                        >
+                            <Eraser size={26} color="#ef4444" strokeWidth={2} />
+                        </div>
+                        <h3
+                            style={{
+                                fontSize: "17px",
+                                fontWeight: "700",
+                                color: "#0f172a",
+                                marginBottom: "8px",
+                            }}
+                        >
+                            Clear chat?
+                        </h3>
+                        <p
+                            style={{
+                                fontSize: "14px",
+                                color: "#64748b",
+                                marginBottom: "20px",
+                            }}
+                        >
+                            This will clear all messages in this chat for you. Other members will
+                            still see them.
+                        </p>
+                        <div style={{ display: "flex", gap: "10px" }}>
+                            <button
+                                onClick={() => setClearConfirm(false)}
+                                style={{
+                                    flex: 1,
+                                    padding: "11px",
+                                    background: "#fff",
+                                    border: "1px solid #e5e7eb",
+                                    borderRadius: "10px",
+                                    fontSize: "14px",
+                                    fontWeight: "500",
+                                    color: "#64748b",
+                                    cursor: "pointer",
+                                    fontFamily: "inherit",
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    await dispatch(clearChatThunk(selectedConversation._id));
+                                    setClearConfirm(false);
+                                }}
+                                style={{
+                                    flex: 1,
+                                    padding: "11px",
+                                    background: "#ef4444",
+                                    border: "none",
+                                    borderRadius: "10px",
+                                    fontSize: "14px",
+                                    fontWeight: "600",
+                                    color: "#fff",
+                                    cursor: "pointer",
+                                    fontFamily: "inherit",
+                                }}
+                            >
+                                Clear
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Delete Conversation Confirmation */}
