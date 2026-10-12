@@ -12,11 +12,18 @@ const EmojiPicker = ({ x, y, onSelect, onClose, currentReaction }) => {
             }
         };
 
+        const handleEsc = (e) => {
+            if (e.key === "Escape") onClose();
+        };
+
         document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
+        document.addEventListener("keydown", handleEsc);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+            document.removeEventListener("keydown", handleEsc);
+        };
     }, [onClose]);
 
-    // Adjust position so picker stays on screen
     const adjustedX = Math.min(x, window.innerWidth - 340);
     const adjustedY = Math.min(y, window.innerHeight - 100);
 
@@ -35,7 +42,7 @@ const EmojiPicker = ({ x, y, onSelect, onClose, currentReaction }) => {
                     onClick={() => onSelect(emoji)}
                     style={{
                         ...styles.emojiBtn,
-                        background: currentReaction === emoji ? "#eef2ff" : "transparent",
+                        background: currentReaction === emoji ? "var(--bg-active)" : "transparent",
                     }}
                     title={emoji}
                 >
@@ -49,15 +56,15 @@ const EmojiPicker = ({ x, y, onSelect, onClose, currentReaction }) => {
 const styles = {
     picker: {
         position: "fixed",
-        background: "#ffffff",
+        background: "var(--bg-modal)",
         borderRadius: "999px",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+        boxShadow: "var(--shadow-lg)",
         padding: "6px 8px",
         display: "flex",
         alignItems: "center",
         gap: "2px",
         zIndex: 2100,
-        border: "1px solid #e5e7eb",
+        border: "1px solid var(--border-color)",
     },
     emojiBtn: {
         width: "36px",

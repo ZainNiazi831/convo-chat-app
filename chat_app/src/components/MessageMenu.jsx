@@ -22,13 +22,20 @@ const MessageMenu = ({
             }
         };
 
+        const handleEsc = (e) => {
+            if (e.key === "Escape") onClose();
+        };
+
         document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
+        document.addEventListener("keydown", handleEsc);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+            document.removeEventListener("keydown", handleEsc);
+        };
     }, [onClose]);
 
-    // Adjust position so menu stays on screen
     const adjustedX = Math.min(x, window.innerWidth - 240);
-    const adjustedY = Math.min(y, window.innerHeight - 280);
+    const adjustedY = Math.min(y, window.innerHeight - 300);
 
     return (
         <div
@@ -39,33 +46,28 @@ const MessageMenu = ({
                 left: adjustedX,
             }}
         >
-            {/* Copy */}
             <button onClick={onCopy} style={styles.menuItem}>
-                <Copy size={16} color="#6b7280" strokeWidth={2} />
+                <Copy size={16} color="var(--text-secondary)" strokeWidth={2} />
                 <span>Copy</span>
             </button>
 
-            {/* Reply */}
             <button onClick={onReply} style={styles.menuItem}>
-                <Reply size={16} color="#6b7280" strokeWidth={2} />
+                <Reply size={16} color="var(--text-secondary)" strokeWidth={2} />
                 <span>Reply</span>
             </button>
 
-            {/* Message Info */}
             <button onClick={onInfo} style={styles.menuItem}>
-                <Info size={16} color="#6b7280" strokeWidth={2} />
+                <Info size={16} color="var(--text-secondary)" strokeWidth={2} />
                 <span>Message info</span>
             </button>
 
             <div style={styles.divider} />
 
-            {/* Delete for me */}
             <button onClick={onDeleteForMe} style={styles.menuItem}>
                 <UserX size={16} color="#ef4444" strokeWidth={2} />
                 <span style={{ color: "#ef4444" }}>Delete for me</span>
             </button>
 
-            {/* Delete for everyone (only own messages) */}
             {isOwn && (
                 <button onClick={onDeleteForEveryone} style={styles.menuItem}>
                     <Trash2 size={16} color="#ef4444" strokeWidth={2} />
@@ -79,13 +81,13 @@ const MessageMenu = ({
 const styles = {
     menu: {
         position: "fixed",
-        background: "#ffffff",
+        background: "var(--bg-modal)",
         borderRadius: "10px",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+        boxShadow: "var(--shadow-lg)",
         padding: "6px",
         zIndex: 2000,
         minWidth: "220px",
-        border: "1px solid #e5e7eb",
+        border: "1px solid var(--border-color)",
     },
     menuItem: {
         display: "flex",
@@ -98,13 +100,14 @@ const styles = {
         borderRadius: "6px",
         cursor: "pointer",
         fontSize: "14px",
-        color: "#1a1a1a",
+        color: "var(--text-primary)",
         fontFamily: "inherit",
         textAlign: "left",
+        transition: "background 0.15s",
     },
     divider: {
         height: "1px",
-        background: "#e5e7eb",
+        background: "var(--border-color)",
         margin: "4px 0",
     },
 };
