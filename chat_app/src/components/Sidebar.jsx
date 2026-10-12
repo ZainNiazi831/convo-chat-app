@@ -18,6 +18,7 @@ import {
 import CreateGroupModal from "./CreateGroupModal";
 import SidebarMenu from "./SidebarMenu";
 import ProfileModal from "./ProfileModal";
+import SettingsModal from "./SettingsModal";
 
 const Sidebar = () => {
     const dispatch = useDispatch();
@@ -34,6 +35,7 @@ const Sidebar = () => {
     const [contextMenu, setContextMenu] = useState(null);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
     const [showProfileModal, setShowProfileModal] = useState(false);
+    const [showSettingsModal, setShowSettingsModal] = useState(false);
 
     useEffect(() => {
         dispatch(fetchUsers());
@@ -482,6 +484,7 @@ const Sidebar = () => {
                         dispatch(fetchUsers());
                     }}
                     onProfile={() => setShowProfileModal(true)}
+                    onSettings={() => setShowSettingsModal(true)}
                     onLogout={handleLogout}
                 />
             )}
@@ -639,6 +642,17 @@ const Sidebar = () => {
             {/* Profile Modal */}
             {showProfileModal && (
                 <ProfileModal onClose={() => setShowProfileModal(false)} />
+            )}
+            {/* Settings Modal */}
+            {showSettingsModal && (
+                <SettingsModal
+                    onClose={() => setShowSettingsModal(false)}
+                    onLogout={handleLogout}
+                    onProfile={() => {
+                        setShowSettingsModal(false);
+                        setShowProfileModal(true);
+                    }}
+                />
             )}
         </>
     );

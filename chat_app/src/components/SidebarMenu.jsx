@@ -14,6 +14,7 @@ const SidebarMenu = ({
     onNewGroup,
     onNewChat,
     onProfile,
+    onSettings,
     onLogout,
 }) => {
     const menuRef = useRef(null);
@@ -30,7 +31,7 @@ const SidebarMenu = ({
     }, [onClose]);
 
     const adjustedX = Math.min(x, window.innerWidth - 240);
-    const adjustedY = Math.min(y, window.innerHeight - 280);
+    const adjustedY = Math.min(y, window.innerHeight - 320);
 
     return (
         <div
@@ -48,7 +49,7 @@ const SidebarMenu = ({
                 }}
                 style={styles.menuItem}
             >
-                <Users size={18} color="#4d6bfe" strokeWidth={2} />
+                <Users size={18} color="var(--accent)" strokeWidth={2} />
                 <span>New group</span>
             </button>
 
@@ -59,7 +60,7 @@ const SidebarMenu = ({
                 }}
                 style={styles.menuItem}
             >
-                <MessageSquarePlus size={18} color="#4d6bfe" strokeWidth={2} />
+                <MessageSquarePlus size={18} color="var(--accent)" strokeWidth={2} />
                 <span>New chat</span>
             </button>
 
@@ -72,17 +73,18 @@ const SidebarMenu = ({
                 }}
                 style={styles.menuItem}
             >
-                <User size={18} color="#6b7280" strokeWidth={2} />
+                <User size={18} color="var(--text-secondary)" strokeWidth={2} />
                 <span>Profile</span>
             </button>
 
             <button
                 onClick={() => {
+                    onSettings();
                     onClose();
                 }}
                 style={styles.menuItem}
             >
-                <Settings size={18} color="#6b7280" strokeWidth={2} />
+                <Settings size={18} color="var(--text-secondary)" strokeWidth={2} />
                 <span>Settings</span>
             </button>
 
@@ -105,13 +107,13 @@ const SidebarMenu = ({
 const styles = {
     menu: {
         position: "fixed",
-        background: "#ffffff",
+        background: "var(--bg-modal)",
         borderRadius: "12px",
-        boxShadow: "0 10px 40px rgba(0,0,0,0.25)",
+        boxShadow: "var(--shadow-lg)",
         padding: "6px",
         zIndex: 2200,
         minWidth: "220px",
-        border: "1px solid #e5e7eb",
+        border: "1px solid var(--border-color)",
     },
     menuItem: {
         display: "flex",
@@ -124,14 +126,14 @@ const styles = {
         borderRadius: "8px",
         cursor: "pointer",
         fontSize: "14px",
-        color: "#1a1a1a",
+        color: "var(--text-primary)",
         fontFamily: "inherit",
         textAlign: "left",
         transition: "background 0.15s",
     },
     divider: {
         height: "1px",
-        background: "#e5e7eb",
+        background: "var(--border-color)",
         margin: "4px 0",
     },
 };
