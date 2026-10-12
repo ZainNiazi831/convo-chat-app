@@ -26,6 +26,7 @@ import {
     toggleFavouriteThunk,
     clearChatThunk,
     toggleMuteThunk,
+    fetchConversations,
 } from "../redux/chatSlice";
 import { useSocket } from "../context/SocketContext";
 import useIsMobile from "../hooks/useIsMobile";
@@ -812,6 +813,7 @@ const ChatWindow = () => {
                     <button
                         onClick={async () => {
                             await dispatch(toggleFavouriteThunk(selectedConversation._id));
+                            dispatch(fetchConversations());
                             setChatMenu(null);
                         }}
                         style={{

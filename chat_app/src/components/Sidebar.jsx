@@ -165,7 +165,6 @@ const Sidebar = () => {
             isDeleted: lm.isDeleted,
         };
     };
-
     const getFilteredConversations = () => {
         let filtered = [...conversations];
 
@@ -174,7 +173,10 @@ const Sidebar = () => {
         } else if (activeTab === "groups") {
             filtered = filtered.filter((c) => c.type === "group");
         } else if (activeTab === "favourites") {
-            filtered = [];
+            // ⭐ Filter conversations where current user is in favourites array
+            filtered = filtered.filter((c) =>
+                c.favourites?.some((id) => String(id) === String(currentUserId))
+            );
         }
 
         if (searchTerm.trim()) {
