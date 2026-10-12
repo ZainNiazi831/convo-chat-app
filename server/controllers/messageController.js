@@ -179,7 +179,64 @@ export const deleteForEveryone = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+// @desc    Toggle reaction on a message
+// @route   PUT /api/messages/:id/react
+// @access  Private
+export const toggleReaction = async (req, res) => {
+    try {
+        const messageId = req.params.id;
+        const { emoji } = req.body;
+        const userId = req.user._id;
 
+        if (!emoji) {
+            return res.status(400).json({ message: "Emoji is required" });
+        }
+
+        const message = await Message.findById(messageId);
+
+        if (!message) {
+            return res.status(404).json({ message: "Message not found" });
+        }
+
+        // Initialize reactions Map if empty
+        if (!message.reactions) {
+            message.reactions = new Map();
+        }
+
+        const currentUsers = message.reactions.get(emoji) || [];
+        const userIndex = currentUsers.findIndex(
+            (id) => id.toString() === userId.toString()
+        );
+
+        if (userIndex === -1) {
+            // Add reaction
+            currentUsers.push(userId);
+            message.reactions.set(emoji, currentUsers);
+        } else {
+            // Remove reaction (toggle)
+            currentUsers.splice(userIndex, 1);
+            if (currentUsers.length === 0) {
+                message.reactions.delete(emoji);
+            } else {
+                message.reactions.set(emoji, currentUsers);
+            }
+        }
+
+        await message.save();
+
+        const populated = await message
+            .populate("sender", "-password")
+            .populate({
+                path: "replyTo",
+                populate: { path: "sender", select: "name username" },
+            });
+
+        res.json(populated);
+    } catch (error) {
+        console.error("toggleReaction error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
 // @desc    Get unread message counts
 // @route   GET /api/messages/unread/counts
 // @access  Private

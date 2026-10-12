@@ -162,6 +162,13 @@ export const initSocket = (httpServer) => {
                 message,
             });
         });
+        // 🔥 Message reaction toggled
+        socket.on("messageReacted", ({ conversationId, message }) => {
+            socket.to(conversationId).emit("messageReacted", {
+                conversationId,
+                message,
+            });
+        });
 
         // ──────── TYPING ────────
         socket.on("typing", ({ conversationId, userId, username }) => {

@@ -10,6 +10,7 @@ import {
     Ban,
     X,
     Reply as ReplyIcon,
+    Smile,
 } from "lucide-react";
 import {
     sendMessage,
@@ -17,6 +18,7 @@ import {
     deleteConversationThunk,
     deleteMessageForMe,
     deleteMessageForEveryone,
+    toggleReaction,
 } from "../redux/chatSlice";
 import { useSocket } from "../context/SocketContext";
 import useIsMobile from "../hooks/useIsMobile";
@@ -25,6 +27,7 @@ import GroupInfoModal from "./GroupInfoModal";
 import DeleteConfirmModal from "./DeleteConfirmModal";
 import MessageMenu from "./MessageMenu";
 import MessageInfoModal from "./MessageInfoModal";
+import EmojiPicker from "./EmojiPicker";
 
 const ChatWindow = () => {
     const dispatch = useDispatch();
@@ -44,6 +47,8 @@ const ChatWindow = () => {
     const [menuState, setMenuState] = useState(null);
     const [replyTo, setReplyTo] = useState(null);
     const [infoMessage, setInfoMessage] = useState(null);
+    const [emojiPicker, setEmojiPicker] = useState(null);
+    const [hoveredMsgId, setHoveredMsgId] = useState(null);
     const messagesEndRef = useRef(null);
     const typingTimeoutRef = useRef(null);
     const inputRef = useRef(null);
@@ -284,6 +289,42 @@ const ChatWindow = () => {
         }
     };
 
+    // 🔥 Reaction toggle
+    const handleReaction = async (emoji, messageId) => {
+        setEmojiPicker(null);
+
+        const result = await dispatch(
+            toggleReaction({ messageId, emoji })
+        );
+
+        if (result.meta.requestStatus === "fulfilled" && socket) {
+            socket.emit("messageReacted", {
+                conversationId: selectedConversation._id,
+                message: result.payload,
+            });
+        }
+    };
+
+    // 🔥 Check if current user reacted with a specific emoji
+    const hasUserReacted = (msg, emoji) => {
+        if (!msg.reactions) return false;
+        const users = msg.reactions[emoji] || msg.reactions.get?.(emoji) || [];
+        return users.some((id) => String(id) === String(currentUserId));
+    };
+
+    // 🔥 Get reactions list from message
+    const getReactions = (msg) => {
+        if (!msg.reactions) return [];
+        const entries = msg.reactions.entries
+            ? Array.from(msg.reactions.entries())
+            : Object.entries(msg.reactions);
+        return entries.map(([emoji, users]) => ({
+            emoji,
+            count: users.length,
+            users,
+        }));
+    };
+
     const handleSend = async () => {
         if (!text.trim() || isSending) return;
 
@@ -459,6 +500,8 @@ const ChatWindow = () => {
                         const senderName =
                             typeof msg.sender === "object" ? msg.sender?.name : null;
                         const isDeleted = msg.isDeleted;
+                        const reactions = getReactions(msg);
+                        const showEmojiButton = hoveredMsgId === msg._id && !isDeleted;
 
                         return (
                             <div
@@ -468,7 +511,33 @@ const ChatWindow = () => {
                                     justifyContent: isOwn ? "flex-end" : "flex-start",
                                 }}
                                 onContextMenu={(e) => handleContextMenu(e, msg)}
+                                onMouseEnter={() => setHoveredMsgId(msg._id)}
+                                onMouseLeave={() => setHoveredMsgId(null)}
                             >
+                                {/* Emoji trigger button (hover) */}
+                                {showEmojiButton && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            setEmojiPicker({
+                                                x: isOwn ? rect.left - 330 : rect.right + 10,
+                                                y: rect.top,
+                                                messageId: msg._id,
+                                            });
+                                        }}
+                                        style={{
+                                            ...styles.emojiTrigger,
+                                            marginRight: isOwn ? "8px" : "0",
+                                            marginLeft: isOwn ? "0" : "8px",
+                                            order: isOwn ? -1 : 1,
+                                        }}
+                                        title="React"
+                                    >
+                                        <Smile size={18} color="#6b7280" strokeWidth={2} />
+                                    </button>
+                                )}
+
                                 <div
                                     style={{
                                         ...styles.bubble,
@@ -492,7 +561,7 @@ const ChatWindow = () => {
                                         <div style={styles.senderName}>{senderName}</div>
                                     )}
 
-                                    {/* Reply preview (quoted message) — WhatsApp style */}
+                                    {/* Reply preview */}
                                     {msg.replyTo && !isDeleted && (
                                         <div
                                             style={{
@@ -555,6 +624,49 @@ const ChatWindow = () => {
                                             </div>
                                         </>
                                     )}
+
+                                    {/* Reactions display */}
+                                    {reactions.length > 0 && (
+                                        <div
+                                            style={{
+                                                ...styles.reactionsRow,
+                                                justifyContent: isOwn ? "flex-end" : "flex-start",
+                                            }}
+                                        >
+                                            {reactions.map(({ emoji, count }) => {
+                                                const isMine = hasUserReacted(msg, emoji);
+                                                return (
+                                                    <button
+                                                        key={emoji}
+                                                        onClick={() => handleReaction(emoji, msg._id)}
+                                                        style={{
+                                                            ...styles.reactionBadge,
+                                                            background: isMine
+                                                                ? "#dbeafe"
+                                                                : isOwn
+                                                                    ? "rgba(255,255,255,0.25)"
+                                                                    : "#f1f5f9",
+                                                            border: `1px solid ${isMine ? "#4d6bfe" : "transparent"
+                                                                }`,
+                                                        }}
+                                                        title={`${count} reaction${count > 1 ? "s" : ""}`}
+                                                    >
+                                                        <span style={styles.reactionEmoji}>{emoji}</span>
+                                                        {count > 1 && (
+                                                            <span
+                                                                style={{
+                                                                    ...styles.reactionCount,
+                                                                    color: isMine ? "#4d6bfe" : "#64748b",
+                                                                }}
+                                                            >
+                                                                {count}
+                                                            </span>
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         );
@@ -563,7 +675,7 @@ const ChatWindow = () => {
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Reply Input Preview — WhatsApp style */}
+            {/* Reply Input Preview */}
             {replyTo && (
                 <div style={styles.replyBar}>
                     <div style={styles.replyBarContent}>
@@ -621,6 +733,16 @@ const ChatWindow = () => {
                     </button>
                 </div>
             </div>
+
+            {/* Emoji Picker */}
+            {emojiPicker && (
+                <EmojiPicker
+                    x={emojiPicker.x}
+                    y={emojiPicker.y}
+                    onSelect={(emoji) => handleReaction(emoji, emojiPicker.messageId)}
+                    onClose={() => setEmojiPicker(null)}
+                />
+            )}
 
             {/* Context Menu */}
             {menuState && (
@@ -778,13 +900,18 @@ const styles = {
         color: "#9ca3af",
         fontSize: "14px",
     },
-    messageRow: { display: "flex", width: "100%" },
+    messageRow: {
+        display: "flex",
+        width: "100%",
+        alignItems: "center",
+    },
     bubble: {
         maxWidth: "70%",
         padding: "10px 14px",
         fontSize: "14px",
         lineHeight: "1.5",
         wordWrap: "break-word",
+        position: "relative",
     },
     senderName: {
         fontSize: "11px",
@@ -828,6 +955,42 @@ const styles = {
     },
     time: { fontSize: "10px" },
     tick: { marginLeft: "2px" },
+    emojiTrigger: {
+        background: "#ffffff",
+        border: "1px solid #e5e7eb",
+        padding: "6px",
+        borderRadius: "50%",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+        transition: "transform 0.15s",
+    },
+    reactionsRow: {
+        display: "flex",
+        gap: "4px",
+        marginTop: "6px",
+        flexWrap: "wrap",
+    },
+    reactionBadge: {
+        display: "flex",
+        alignItems: "center",
+        gap: "3px",
+        padding: "2px 7px",
+        borderRadius: "999px",
+        cursor: "pointer",
+        fontSize: "13px",
+        transition: "transform 0.1s",
+    },
+    reactionEmoji: {
+        fontSize: "14px",
+        lineHeight: 1,
+    },
+    reactionCount: {
+        fontSize: "11px",
+        fontWeight: "600",
+    },
     replyBar: {
         padding: "10px 16px 4px 16px",
         background: "#ffffff",

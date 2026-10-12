@@ -155,6 +155,24 @@ export const deleteMessageForEveryone = createAsyncThunk(
         }
     }
 );
+// ─── TOGGLE REACTION ───
+export const toggleReaction = createAsyncThunk(
+    "chat/toggleReaction",
+    async ({ messageId, emoji }, thunkAPI) => {
+        try {
+            const response = await API.put(`/messages/${messageId}/react`, {
+                emoji,
+            });
+            return response.data;
+        } catch (error) {
+            const message =
+                error.response?.data?.message ||
+                error.message ||
+                "Failed to toggle reaction";
+            return thunkAPI.rejectWithValue(message);
+        }
+    }
+);
 
 // ─── FETCH UNREAD COUNTS ───
 export const fetchUnreadCounts = createAsyncThunk(
@@ -292,6 +310,19 @@ const chatSlice = createSlice({
                 };
             }
         },
+        // Real-time reaction update from socket
+        markMessageReacted: (state, action) => {
+            const updatedMessage = action.payload;
+            const index = state.messages.findIndex(
+                (m) => m._id === updatedMessage._id
+            );
+            if (index !== -1) {
+                state.messages[index] = {
+                    ...state.messages[index],
+                    ...updatedMessage,
+                };
+            }
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -374,6 +405,14 @@ const chatSlice = createSlice({
                     state.messages[index] = { ...state.messages[index], ...updated };
                 }
             })
+            // ─── Toggle Reaction ───
+            .addCase(toggleReaction.fulfilled, (state, action) => {
+                const updated = action.payload;
+                const index = state.messages.findIndex((m) => m._id === updated._id);
+                if (index !== -1) {
+                    state.messages[index] = { ...state.messages[index], ...updated };
+                }
+            })
             // ─── Fetch Unread Counts ───
             .addCase(fetchUnreadCounts.fulfilled, (state, action) => {
                 state.unreadCounts = action.payload;
@@ -412,6 +451,7 @@ export const {
     showMobileSidebar,
     clearUnreadForUser,
     markMessageDeleted,
+    markMessageReacted,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;

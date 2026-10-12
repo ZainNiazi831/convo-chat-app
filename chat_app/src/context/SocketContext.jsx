@@ -5,6 +5,7 @@ import {
     addIncomingMessage,
     fetchUnreadCounts,
     markMessageDeleted,
+    markMessageReacted,
 } from "../redux/chatSlice";
 import API from "../services/api";
 
@@ -107,7 +108,6 @@ export const SocketProvider = ({ children }) => {
             const isCurrentConvOpen =
                 currentConvId && String(message.conversation) === String(currentConvId);
 
-            // Mark as DELIVERED
             socket.emit("messagesDelivered", {
                 conversationId: message.conversation,
                 readerId: currentUserId,
@@ -124,7 +124,6 @@ export const SocketProvider = ({ children }) => {
                 }
             ).catch(() => { });
 
-            // If current conv open, mark READ
             if (isCurrentConvOpen) {
                 socket.emit("messagesRead", {
                     conversationId: message.conversation,
@@ -142,7 +141,6 @@ export const SocketProvider = ({ children }) => {
                     }
                 ).catch(() => { });
             } else {
-                // Play notification sound
                 try {
                     const audio = new Audio("/notification.mp3");
                     audio.volume = 0.5;
@@ -169,10 +167,17 @@ export const SocketProvider = ({ children }) => {
             dispatch(markMessageDeleted(message));
         };
 
+        const handleMessageReacted = ({ conversationId, message }) => {
+            console.log("😀 [MESSAGE REACTED]", message);
+            dispatch(markMessageReacted(message));
+        };
+
         socket.on("messageDeletedForEveryone", handleDeletedForEveryone);
+        socket.on("messageReacted", handleMessageReacted);
 
         return () => {
             socket.off("messageDeletedForEveryone", handleDeletedForEveryone);
+            socket.off("messageReacted", handleMessageReacted);
         };
     }, [socket, dispatch]);
 
