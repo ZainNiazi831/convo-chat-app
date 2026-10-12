@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { Search, PlusCircle, LogOut, Users } from "lucide-react";
+import { Search, MoreVertical, Users } from "lucide-react";
 import { logout } from "../redux/authSlice";
 import {
     fetchUsers,
@@ -15,6 +15,7 @@ import {
     resetChat,
 } from "../redux/chatSlice";
 import CreateGroupModal from "./CreateGroupModal";
+import SidebarMenu from "./SidebarMenu";
 
 const Sidebar = () => {
     const dispatch = useDispatch();
@@ -27,6 +28,7 @@ const Sidebar = () => {
     const [hoveredId, setHoveredId] = useState(null);
     const [activeUserId, setActiveUserId] = useState(null);
     const [showGroupModal, setShowGroupModal] = useState(false);
+    const [menuState, setMenuState] = useState(null);
 
     useEffect(() => {
         dispatch(fetchUsers());
@@ -50,7 +52,6 @@ const Sidebar = () => {
         navigate("/login");
     };
 
-    // Private chat with a user
     const handleUserClick = async (clickedUser) => {
         setActiveUserId(clickedUser._id);
         const result = await dispatch(createConversation(clickedUser._id));
@@ -70,11 +71,19 @@ const Sidebar = () => {
         }
     };
 
-    // Group chat click
     const handleGroupClick = async (group) => {
         setActiveUserId(group._id);
         dispatch(setSelectedConversation(group));
         dispatch(fetchMessages(group._id));
+    };
+
+    const handleOpenMenu = (e) => {
+        e.stopPropagation();
+        const rect = e.currentTarget.getBoundingClientRect();
+        setMenuState({
+            x: rect.right - 220,
+            y: rect.bottom + 8,
+        });
     };
 
     const formatBadge = (count) => {
@@ -82,10 +91,7 @@ const Sidebar = () => {
         return count.toString();
     };
 
-    // Filter groups from conversations
     const groups = conversations.filter((c) => c.type === "group");
-
-    // Filter users by search
     const filteredUsers = users.filter(
         (u) =>
             !searchTerm ||
@@ -96,30 +102,19 @@ const Sidebar = () => {
     return (
         <>
             <aside style={styles.sidebar}>
-                {/* Header */}
+                {/* Header — Logo + 3-dot menu (no buttons) */}
                 <div style={styles.header}>
                     <img src="/logo.png" alt="Logo" style={styles.brandLogo} />
-                    <button style={styles.iconBtn} title="Search">
-                        <Search size={20} color="#6b7280" strokeWidth={2} />
-                    </button>
-                </div>
-
-                {/* Actions: New Chat + New Group */}
-                <div style={styles.actionsWrapper}>
-                    <button style={styles.newChatBtn}>
-                        <PlusCircle size={18} strokeWidth={2} />
-                        New chat
-                    </button>
                     <button
-                        style={styles.newGroupBtn}
-                        onClick={() => setShowGroupModal(true)}
-                        title="Create group"
+                        onClick={handleOpenMenu}
+                        style={styles.menuBtn}
+                        title="Menu"
                     >
-                        <Users size={18} strokeWidth={2} />
+                        <MoreVertical size={22} color="#6b7280" strokeWidth={2} />
                     </button>
                 </div>
 
-                {/* Search */}
+                {/* Search Bar — Directly under header */}
                 <div style={styles.searchWrapper}>
                     <div style={styles.searchBox}>
                         <Search
@@ -138,7 +133,7 @@ const Sidebar = () => {
                     </div>
                 </div>
 
-                {/* Groups Section (if any) */}
+                {/* Groups Section */}
                 {groups.length > 0 && (
                     <>
                         <div style={styles.sectionLabel}>Groups</div>
@@ -274,16 +269,27 @@ const Sidebar = () => {
                             <div style={styles.userName}>{user?.name}</div>
                             <div style={styles.userUsername}>@{user?.username}</div>
                         </div>
-                        <button
-                            onClick={handleLogout}
-                            style={styles.logoutBtn}
-                            title="Logout"
-                        >
-                            <LogOut size={16} strokeWidth={2} />
-                        </button>
                     </div>
                 </div>
             </aside>
+
+            {/* Sidebar 3-dot Menu */}
+            {menuState && (
+                <SidebarMenu
+                    x={menuState.x}
+                    y={menuState.y}
+                    onClose={() => setMenuState(null)}
+                    onNewGroup={() => setShowGroupModal(true)}
+                    onNewChat={() => {
+                        setSearchTerm("");
+                        dispatch(fetchUsers());
+                    }}
+                    onProfile={() => {
+                        alert("Profile page coming soon!");
+                    }}
+                    onLogout={handleLogout}
+                />
+            )}
 
             {/* Group Modal */}
             {showGroupModal && (
@@ -306,60 +312,49 @@ const styles = {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "16px 12px",
+        padding: "16px 16px 12px 16px",
         borderBottom: "1px solid #f3f4f6",
     },
     brandLogo: {
         width: "180px",
         height: "auto",
-        maxHeight: "60px",
+        maxHeight: "56px",
         objectFit: "contain",
     },
-    iconBtn: {
+    menuBtn: {
         background: "transparent",
         border: "none",
-        padding: "6px",
+        padding: "8px",
         borderRadius: "8px",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         cursor: "pointer",
         flexShrink: 0,
+        transition: "background 0.15s",
     },
-    actionsWrapper: {
+    searchWrapper: {
+        padding: "12px 16px 8px 16px",
+    },
+    searchBox: {
+        position: "relative",
         display: "flex",
-        gap: "8px",
-        padding: "12px 16px",
+        alignItems: "center",
     },
-    newChatBtn: {
-        flex: 1,
-        padding: "11px 16px",
-        background: "#ffffff",
-        border: "1px solid #e5e7eb",
+    searchIcon: {
+        position: "absolute",
+        left: "14px",
+        pointerEvents: "none",
+    },
+    searchInput: {
+        width: "100%",
+        padding: "11px 14px 11px 40px",
+        background: "#f3f4f6",
+        border: "1px solid transparent",
         borderRadius: "999px",
         color: "#1a1a1a",
         fontSize: "14px",
-        fontWeight: "500",
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        justifyContent: "center",
-        cursor: "pointer",
-    },
-    newGroupBtn: {
-        width: "42px",
-        height: "42px",
-        padding: 0,
-        background: "linear-gradient(135deg, #4d6bfe, #6366f1)",
-        border: "none",
-        borderRadius: "999px",
-        color: "#fff",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: "pointer",
-        boxShadow: "0 2px 8px rgba(77,107,254,0.35)",
-        flexShrink: 0,
+        transition: "all 0.15s",
     },
     sectionLabel: {
         padding: "8px 20px 6px 20px",
@@ -369,19 +364,11 @@ const styles = {
         textTransform: "uppercase",
         letterSpacing: "0.5px",
     },
-    searchWrapper: { padding: "0 16px 8px 16px" },
-    searchBox: { position: "relative", display: "flex", alignItems: "center" },
-    searchIcon: { position: "absolute", left: "12px", pointerEvents: "none" },
-    searchInput: {
-        width: "100%",
-        padding: "9px 12px 9px 36px",
-        background: "#f9fafb",
-        border: "1px solid #f3f4f6",
-        borderRadius: "10px",
-        color: "#1a1a1a",
-        fontSize: "13px",
+    list: {
+        flex: 1,
+        overflowY: "auto",
+        paddingBottom: "10px",
     },
-    list: { flex: 1, overflowY: "auto", paddingBottom: "10px" },
     stateText: {
         textAlign: "center",
         color: "#9ca3af",
@@ -399,8 +386,8 @@ const styles = {
         transition: "background 0.15s, border-left 0.15s",
     },
     smallAvatar: {
-        width: "36px",
-        height: "36px",
+        width: "40px",
+        height: "40px",
         borderRadius: "50%",
         background: "linear-gradient(135deg, #4d6bfe, #6366f1)",
         display: "flex",
@@ -408,19 +395,21 @@ const styles = {
         justifyContent: "center",
         color: "#fff",
         fontWeight: "600",
-        fontSize: "14px",
+        fontSize: "15px",
         flexShrink: 0,
     },
     itemInfo: { flex: 1, minWidth: 0 },
     itemName: {
-        fontSize: "13.5px",
+        fontSize: "14px",
+        fontWeight: "500",
         whiteSpace: "nowrap",
         overflow: "hidden",
         textOverflow: "ellipsis",
     },
     itemUsername: {
-        fontSize: "12px",
-        marginTop: "1px",
+        fontSize: "12.5px",
+        color: "#9ca3af",
+        marginTop: "2px",
         whiteSpace: "nowrap",
         overflow: "hidden",
         textOverflow: "ellipsis",
@@ -440,7 +429,10 @@ const styles = {
         flexShrink: 0,
         boxShadow: "0 2px 8px rgba(77,107,254,0.45)",
     },
-    bottomProfile: { padding: "12px", borderTop: "1px solid #e5e7eb" },
+    bottomProfile: {
+        padding: "12px",
+        borderTop: "1px solid #e5e7eb",
+    },
     profileCard: {
         display: "flex",
         alignItems: "center",
@@ -450,8 +442,8 @@ const styles = {
         background: "#f9fafb",
     },
     avatar: {
-        width: "34px",
-        height: "34px",
+        width: "36px",
+        height: "36px",
         borderRadius: "50%",
         background: "linear-gradient(135deg, #4d6bfe, #6366f1)",
         display: "flex",
@@ -459,31 +451,22 @@ const styles = {
         justifyContent: "center",
         color: "#fff",
         fontWeight: "600",
-        fontSize: "13px",
+        fontSize: "14px",
         flexShrink: 0,
     },
     userInfo: { flex: 1, minWidth: 0 },
     userName: {
-        fontSize: "13px",
+        fontSize: "13.5px",
         fontWeight: "600",
         color: "#1a1a1a",
         whiteSpace: "nowrap",
         overflow: "hidden",
         textOverflow: "ellipsis",
     },
-    userUsername: { fontSize: "11px", color: "#9ca3af", marginTop: "1px" },
-    logoutBtn: {
-        background: "transparent",
-        border: "none",
+    userUsername: {
+        fontSize: "11.5px",
         color: "#9ca3af",
-        width: "28px",
-        height: "28px",
-        borderRadius: "6px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
-        cursor: "pointer",
+        marginTop: "1px",
     },
 };
 
