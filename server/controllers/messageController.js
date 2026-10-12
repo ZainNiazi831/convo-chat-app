@@ -198,9 +198,11 @@ export const toggleReaction = async (req, res) => {
             return res.status(404).json({ message: "Message not found" });
         }
 
-        // Initialize reactions Map if empty
-        if (!message.reactions) {
-            message.reactions = new Map();
+        // Ensure reactions is a Map
+        if (!(message.reactions instanceof Map)) {
+            message.reactions = new Map(
+                Object.entries(message.reactions || {})
+            );
         }
 
         const currentUsers = message.reactions.get(emoji) || [];
@@ -209,27 +211,28 @@ export const toggleReaction = async (req, res) => {
         );
 
         if (userIndex === -1) {
-            // Add reaction
-            currentUsers.push(userId);
-            message.reactions.set(emoji, currentUsers);
+            const updatedUsers = [...currentUsers, userId];
+            message.reactions.set(emoji, updatedUsers);
         } else {
-            // Remove reaction (toggle)
-            currentUsers.splice(userIndex, 1);
-            if (currentUsers.length === 0) {
+            const updatedUsers = currentUsers.filter(
+                (id, idx) => idx !== userIndex
+            );
+            if (updatedUsers.length === 0) {
                 message.reactions.delete(emoji);
             } else {
-                message.reactions.set(emoji, currentUsers);
+                message.reactions.set(emoji, updatedUsers);
             }
         }
 
+        message.markModified("reactions");
         await message.save();
 
-        const populated = await message
-            .populate("sender", "-password")
-            .populate({
-                path: "replyTo",
-                populate: { path: "sender", select: "name username" },
-            });
+        // ✅ FIX: Populate sequentially, not chained
+        let populated = await message.populate("sender", "-password");
+        populated = await populated.populate({
+            path: "replyTo",
+            populate: { path: "sender", select: "name username" },
+        });
 
         res.json(populated);
     } catch (error) {
