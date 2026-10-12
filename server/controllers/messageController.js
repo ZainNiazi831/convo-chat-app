@@ -179,7 +179,7 @@ export const deleteForEveryone = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
-// @desc    Toggle reaction on a message
+// @desc    Toggle reaction on a message (one emoji per user)
 // @route   PUT /api/messages/:id/react
 // @access  Private
 export const toggleReaction = async (req, res) => {
@@ -205,29 +205,39 @@ export const toggleReaction = async (req, res) => {
             );
         }
 
+        // 🔥 STEP 1: Check if user already reacted with THIS emoji
         const currentUsers = message.reactions.get(emoji) || [];
-        const userIndex = currentUsers.findIndex(
+        const alreadyReactedWithThis = currentUsers.findIndex(
             (id) => id.toString() === userId.toString()
-        );
+        ) !== -1;
 
-        if (userIndex === -1) {
-            const updatedUsers = [...currentUsers, userId];
-            message.reactions.set(emoji, updatedUsers);
-        } else {
-            const updatedUsers = currentUsers.filter(
-                (id, idx) => idx !== userIndex
+        // 🔥 STEP 2: Remove user from ALL other emojis
+        for (const [existingEmoji, users] of message.reactions.entries()) {
+            const filtered = users.filter(
+                (id) => id.toString() !== userId.toString()
             );
-            if (updatedUsers.length === 0) {
-                message.reactions.delete(emoji);
+            if (filtered.length === 0) {
+                message.reactions.delete(existingEmoji);
             } else {
-                message.reactions.set(emoji, updatedUsers);
+                message.reactions.set(existingEmoji, filtered);
             }
         }
+
+        // 🔥 STEP 3: If user had already reacted with same emoji → toggle OFF (remove)
+        // If user reacted with a DIFFERENT emoji → remove old, add new
+        if (!alreadyReactedWithThis) {
+            // Add new reaction
+            const updatedUsers = [...currentUsers.filter(
+                (id) => id.toString() !== userId.toString()
+            ), userId];
+            message.reactions.set(emoji, updatedUsers);
+        }
+        // else: alreadyReactedWithThis is true → we already removed it in STEP 2 → toggle OFF
 
         message.markModified("reactions");
         await message.save();
 
-        // ✅ FIX: Populate sequentially, not chained
+        // ✅ Populate sequentially
         let populated = await message.populate("sender", "-password");
         populated = await populated.populate({
             path: "replyTo",
