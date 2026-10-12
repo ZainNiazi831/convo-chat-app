@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { Search, MoreVertical, Users, Pin } from "lucide-react";
+import { Search, MoreVertical, Users, Trash2 } from "lucide-react";
 import { logout } from "../redux/authSlice";
 import {
     fetchUsers,
@@ -13,6 +13,7 @@ import {
     clearUnreadForUser,
     setSelectedConversation,
     resetChat,
+    deleteConversationThunk,
 } from "../redux/chatSlice";
 import CreateGroupModal from "./CreateGroupModal";
 import SidebarMenu from "./SidebarMenu";
@@ -28,7 +29,9 @@ const Sidebar = () => {
     const [activeUserId, setActiveUserId] = useState(null);
     const [showGroupModal, setShowGroupModal] = useState(false);
     const [menuState, setMenuState] = useState(null);
-    const [activeTab, setActiveTab] = useState("all"); // all | unread | groups | favourites
+    const [activeTab, setActiveTab] = useState("all");
+    const [contextMenu, setContextMenu] = useState(null);
+    const [deleteConfirm, setDeleteConfirm] = useState(null);
 
     useEffect(() => {
         dispatch(fetchUsers());
@@ -46,7 +49,6 @@ const Sidebar = () => {
         return () => clearTimeout(timer);
     }, [searchTerm, dispatch]);
 
-    // Refresh conversations when new messages arrive
     useEffect(() => {
         if (messages.length > 0) {
             dispatch(fetchConversations());
@@ -66,7 +68,6 @@ const Sidebar = () => {
         dispatch(setSelectedConversation(conv));
         dispatch(fetchMessages(conv._id));
 
-        // Mark as read
         if (conv.type === "private") {
             const otherUser = conv.members?.find(
                 (m) => String(m._id) !== String(currentUserId)
@@ -90,6 +91,13 @@ const Sidebar = () => {
             x: rect.right - 220,
             y: rect.bottom + 8,
         });
+    };
+
+    const handleDeleteConversation = async () => {
+        if (!deleteConfirm) return;
+        const convId = deleteConfirm._id;
+        setDeleteConfirm(null);
+        await dispatch(deleteConversationThunk(convId));
     };
 
     const formatBadge = (count) => {
@@ -119,7 +127,6 @@ const Sidebar = () => {
         }
     };
 
-    // Get unread count for a conversation
     const getConvUnreadCount = (conv) => {
         if (conv.type === "group") {
             return unreadCounts[conv._id] || 0;
@@ -130,7 +137,6 @@ const Sidebar = () => {
         return otherUser ? unreadCounts[otherUser._id] || 0 : 0;
     };
 
-    // Get display name for a conversation
     const getConvDisplayName = (conv) => {
         if (conv.type === "group") return conv.name || "Group";
         const otherUser = conv.members?.find(
@@ -139,14 +145,19 @@ const Sidebar = () => {
         return otherUser?.name || "Unknown";
     };
 
-    // Get last message preview
     const getLastMessagePreview = (conv) => {
         const lm = conv.lastMessage;
-        if (!lm) return { text: "No messages yet", isOwn: false, isDeleted: false };
+        if (!lm)
+            return { text: "No messages yet", isOwn: false, isDeleted: false };
 
-        const isOwn = String(lm.sender?._id || lm.sender) === String(currentUserId);
+        const isOwn =
+            String(lm.sender?._id || lm.sender) === String(currentUserId);
         const senderName =
-            conv.type === "group" && !isOwn ? `${lm.sender?.name}: ` : isOwn ? "You: " : "";
+            conv.type === "group" && !isOwn
+                ? `${lm.sender?.name}: `
+                : isOwn
+                    ? "You: "
+                    : "";
 
         return {
             text: `${senderName}${lm.text || ""}`,
@@ -155,7 +166,6 @@ const Sidebar = () => {
         };
     };
 
-    // Filter conversations based on tab
     const getFilteredConversations = () => {
         let filtered = [...conversations];
 
@@ -164,10 +174,9 @@ const Sidebar = () => {
         } else if (activeTab === "groups") {
             filtered = filtered.filter((c) => c.type === "group");
         } else if (activeTab === "favourites") {
-            filtered = []; // Future
+            filtered = [];
         }
 
-        // Search filter
         if (searchTerm.trim()) {
             filtered = filtered.filter((c) => {
                 const name = getConvDisplayName(c);
@@ -178,7 +187,6 @@ const Sidebar = () => {
         return filtered;
     };
 
-    // Sidebar shows conversations if any exist, else shows users
     const filteredConversations = getFilteredConversations();
     const hasConversations = conversations.length > 0;
 
@@ -226,7 +234,7 @@ const Sidebar = () => {
                     </div>
                 </div>
 
-                {/* Tabs (only show if we have conversations) */}
+                {/* Tabs */}
                 {hasConversations && (
                     <div style={styles.tabsWrapper}>
                         {tabs.map((tab) => (
@@ -247,7 +255,7 @@ const Sidebar = () => {
                     </div>
                 )}
 
-                {/* Conversations List (if any) */}
+                {/* Conversations List */}
                 {hasConversations ? (
                     <div style={styles.list}>
                         {filteredConversations.length === 0 && (
@@ -289,6 +297,14 @@ const Sidebar = () => {
                                     onMouseEnter={() => setHoveredId(conv._id)}
                                     onMouseLeave={() => setHoveredId(null)}
                                     onClick={() => handleConversationClick(conv)}
+                                    onContextMenu={(e) => {
+                                        e.preventDefault();
+                                        setContextMenu({
+                                            x: e.clientX,
+                                            y: e.clientY,
+                                            conv,
+                                        });
+                                    }}
                                 >
                                     <div
                                         style={{
@@ -343,7 +359,21 @@ const Sidebar = () => {
                                                 )}
                                             </div>
                                             {hasUnread && (
-                                                <div style={styles.badge}>{formatBadge(unreadCount)}</div>
+                                                <div style={styles.badge}>
+                                                    {formatBadge(unreadCount)}
+                                                </div>
+                                            )}
+                                            {isHovered && !hasUnread && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setDeleteConfirm(conv);
+                                                    }}
+                                                    style={styles.deleteBtn}
+                                                    title="Delete chat"
+                                                >
+                                                    <Trash2 size={14} color="#ef4444" strokeWidth={2} />
+                                                </button>
                                             )}
                                         </div>
                                     </div>
@@ -352,7 +382,6 @@ const Sidebar = () => {
                         })}
                     </div>
                 ) : (
-                    /* Show users list if no conversations */
                     <>
                         <div style={styles.sectionLabel}>Start a conversation</div>
                         <div style={styles.list}>
@@ -405,7 +434,7 @@ const Sidebar = () => {
                 </div>
             </aside>
 
-            {/* Sidebar Menu */}
+            {/* Sidebar 3-dot Menu */}
             {menuState && (
                 <SidebarMenu
                     x={menuState.x}
@@ -420,6 +449,151 @@ const Sidebar = () => {
                     onProfile={() => alert("Profile page coming soon!")}
                     onLogout={handleLogout}
                 />
+            )}
+
+            {/* Right-click Context Menu */}
+            {contextMenu && (
+                <div
+                    style={{
+                        position: "fixed",
+                        top: contextMenu.y,
+                        left: contextMenu.x,
+                        background: "#fff",
+                        borderRadius: "10px",
+                        boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+                        padding: "6px",
+                        zIndex: 2100,
+                        minWidth: "180px",
+                        border: "1px solid #e5e7eb",
+                    }}
+                    onMouseLeave={() => setContextMenu(null)}
+                >
+                    <button
+                        onClick={() => {
+                            setDeleteConfirm(contextMenu.conv);
+                            setContextMenu(null);
+                        }}
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "10px",
+                            width: "100%",
+                            padding: "10px 12px",
+                            background: "transparent",
+                            border: "none",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                            fontSize: "14px",
+                            color: "#ef4444",
+                            fontFamily: "inherit",
+                        }}
+                    >
+                        <Trash2 size={16} color="#ef4444" strokeWidth={2} />
+                        <span>Delete chat</span>
+                    </button>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {deleteConfirm && (
+                <div
+                    style={{
+                        position: "fixed",
+                        inset: 0,
+                        background: "rgba(15, 23, 42, 0.6)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        zIndex: 3000,
+                    }}
+                    onClick={() => setDeleteConfirm(null)}
+                >
+                    <div
+                        style={{
+                            background: "#fff",
+                            borderRadius: "16px",
+                            padding: "24px",
+                            maxWidth: "360px",
+                            width: "90%",
+                            textAlign: "center",
+                            boxShadow: "0 25px 60px rgba(0,0,0,0.3)",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div
+                            style={{
+                                width: "56px",
+                                height: "56px",
+                                borderRadius: "50%",
+                                background: "#fee2e2",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                margin: "0 auto 16px auto",
+                            }}
+                        >
+                            <Trash2 size={26} color="#ef4444" strokeWidth={2} />
+                        </div>
+                        <h3
+                            style={{
+                                fontSize: "17px",
+                                fontWeight: "700",
+                                color: "#0f172a",
+                                marginBottom: "8px",
+                            }}
+                        >
+                            Delete chat?
+                        </h3>
+                        <p
+                            style={{
+                                fontSize: "14px",
+                                color: "#64748b",
+                                marginBottom: "20px",
+                                lineHeight: "1.5",
+                            }}
+                        >
+                            This will permanently delete this chat and all its messages. This
+                            action cannot be undone.
+                        </p>
+                        <div style={{ display: "flex", gap: "10px" }}>
+                            <button
+                                onClick={() => setDeleteConfirm(null)}
+                                style={{
+                                    flex: 1,
+                                    padding: "11px",
+                                    background: "#fff",
+                                    border: "1px solid #e5e7eb",
+                                    borderRadius: "10px",
+                                    fontSize: "14px",
+                                    fontWeight: "500",
+                                    color: "#64748b",
+                                    cursor: "pointer",
+                                    fontFamily: "inherit",
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDeleteConversation}
+                                style={{
+                                    flex: 1,
+                                    padding: "11px",
+                                    background: "#ef4444",
+                                    border: "none",
+                                    borderRadius: "10px",
+                                    fontSize: "14px",
+                                    fontWeight: "600",
+                                    color: "#fff",
+                                    cursor: "pointer",
+                                    fontFamily: "inherit",
+                                    boxShadow: "0 2px 8px rgba(239,68,68,0.35)",
+                                }}
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Group Modal */}
@@ -588,6 +762,18 @@ const styles = {
         alignItems: "center",
         justifyContent: "center",
         flexShrink: 0,
+    },
+    deleteBtn: {
+        background: "transparent",
+        border: "none",
+        padding: "4px",
+        borderRadius: "6px",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        marginLeft: "6px",
     },
     bottomProfile: {
         padding: "12px",
