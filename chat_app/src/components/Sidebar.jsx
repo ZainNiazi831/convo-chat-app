@@ -662,17 +662,18 @@ const styles = {
     sidebar: {
         width: "100%",
         height: "100%",
-        background: "#ffffff",
+        background: "var(--bg-primary)",
         display: "flex",
         flexDirection: "column",
         flexShrink: 0,
+        transition: "background 0.3s ease",
     },
     header: {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         padding: "16px 16px 12px 16px",
-        borderBottom: "1px solid #f3f4f6",
+        borderBottom: "1px solid var(--border-light)",
     },
     brandLogo: {
         width: "180px",
@@ -707,12 +708,13 @@ const styles = {
     searchInput: {
         width: "100%",
         padding: "11px 14px 11px 40px",
-        background: "#f3f4f6",
+        background: "var(--bg-input)",
         border: "1px solid transparent",
         borderRadius: "999px",
-        color: "#1a1a1a",
+        color: "var(--text-primary)",
         fontSize: "14px",
         outline: "none",
+        transition: "background 0.2s, color 0.2s",
     },
     tabsWrapper: {
         display: "flex",
@@ -734,7 +736,7 @@ const styles = {
         padding: "8px 20px 6px 20px",
         fontSize: "11px",
         fontWeight: "600",
-        color: "#9ca3af",
+        color: "var(--text-muted)",
         textTransform: "uppercase",
         letterSpacing: "0.5px",
     },
@@ -745,7 +747,7 @@ const styles = {
     },
     stateText: {
         textAlign: "center",
-        color: "#9ca3af",
+        color: "var(--text-muted)",
         fontSize: "13px",
         padding: "30px 20px",
     },
@@ -763,7 +765,7 @@ const styles = {
         width: "44px",
         height: "44px",
         borderRadius: "50%",
-        background: "linear-gradient(135deg, #4d6bfe, #6366f1)",
+        background: "linear-gradient(135deg, var(--accent), var(--accent-hover))",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -804,7 +806,7 @@ const styles = {
         textOverflow: "ellipsis",
     },
     badge: {
-        background: "#4d6bfe",
+        background: "var(--accent)",
         color: "#fff",
         fontSize: "11px",
         fontWeight: "700",
@@ -831,7 +833,7 @@ const styles = {
     },
     bottomProfile: {
         padding: "12px",
-        borderTop: "1px solid #e5e7eb",
+        borderTop: "1px solid var(--border-color)",
     },
     profileCard: {
         display: "flex",
@@ -839,7 +841,7 @@ const styles = {
         gap: "10px",
         padding: "8px 10px",
         borderRadius: "10px",
-        background: "#f9fafb",
+        background: "var(--bg-hover)",
         cursor: "pointer",
         transition: "background 0.15s",
     },
@@ -847,7 +849,7 @@ const styles = {
         width: "36px",
         height: "36px",
         borderRadius: "50%",
-        background: "linear-gradient(135deg, #4d6bfe, #6366f1)",
+        background: "linear-gradient(135deg, var(--accent), var(--accent-hover))",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -860,16 +862,15 @@ const styles = {
     userName: {
         fontSize: "13.5px",
         fontWeight: "600",
-        color: "#1a1a1a",
+        color: "var(--text-primary)",
         whiteSpace: "nowrap",
         overflow: "hidden",
         textOverflow: "ellipsis",
     },
     userUsername: {
         fontSize: "11.5px",
-        color: "#9ca3af",
+        color: "var(--text-muted)",
         marginTop: "1px",
     },
 };
-
 export default Sidebar;

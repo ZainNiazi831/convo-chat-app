@@ -64,7 +64,6 @@ const ChatWindow = () => {
 
     const currentUserId = user?._id || user?.id;
 
-    // ⭐ Get fresh favourite state from Redux conversations
     const currentConv = conversations.find(
         (c) => c._id === selectedConversation?._id
     );
@@ -73,18 +72,16 @@ const ChatWindow = () => {
     );
     const isMuted = currentConv?._muted || false;
 
-    // Auto-scroll
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    // 🔥 Auto-close chatMenu, emojiPicker, menuState on outside click + ESC
     useEffect(() => {
         const handleClickOutside = (e) => {
-            if (chatMenu && !e.target.closest('[data-chat-menu]')) {
+            if (chatMenu && !e.target.closest("[data-chat-menu]")) {
                 setChatMenu(null);
             }
-            if (emojiPicker && !e.target.closest('[data-emoji-picker]')) {
+            if (emojiPicker && !e.target.closest("[data-emoji-picker]")) {
                 setEmojiPicker(null);
             }
         };
@@ -105,7 +102,6 @@ const ChatWindow = () => {
         };
     }, [chatMenu, emojiPicker]);
 
-    // Mark delivered + read when chat opens
     useEffect(() => {
         if (!selectedConversation || !socket || !user) return;
 
@@ -142,7 +138,6 @@ const ChatWindow = () => {
         ).catch(() => { });
     }, [selectedConversation, socket, user, currentUserId]);
 
-    // Listen typing + read + delivered
     useEffect(() => {
         if (!socket || !user) return;
 
@@ -453,7 +448,6 @@ const ChatWindow = () => {
 
     return (
         <main style={styles.window}>
-            {/* Chat Header */}
             <div style={styles.chatHeader}>
                 {isMobile && (
                     <button
@@ -482,7 +476,7 @@ const ChatWindow = () => {
                             ...styles.headerAvatar,
                             background: isGroup
                                 ? "linear-gradient(135deg, #8b5cf6, #a855f7)"
-                                : "linear-gradient(135deg, #4d6bfe, #6366f1)",
+                                : "linear-gradient(135deg, var(--accent), var(--accent-hover))",
                         }}
                     >
                         {isGroup ? (
@@ -522,11 +516,14 @@ const ChatWindow = () => {
                     style={styles.menuBtn}
                     title="Chat menu"
                 >
-                    <MoreVertical size={20} color="#6b7280" strokeWidth={2} />
+                    <MoreVertical
+                        size={20}
+                        color="var(--text-secondary)"
+                        strokeWidth={2}
+                    />
                 </button>
             </div>
 
-            {/* Messages */}
             <div style={styles.messagesArea}>
                 {messages.length === 0 ? (
                     <div style={styles.noMessages}>
@@ -571,7 +568,11 @@ const ChatWindow = () => {
                                         }}
                                         title="React"
                                     >
-                                        <Smile size={18} color="#6b7280" strokeWidth={2} />
+                                        <Smile
+                                            size={18}
+                                            color="var(--text-secondary)"
+                                            strokeWidth={2}
+                                        />
                                     </button>
                                 )}
 
@@ -579,18 +580,19 @@ const ChatWindow = () => {
                                     style={{
                                         ...styles.bubble,
                                         background: isDeleted
-                                            ? "#f1f5f9"
+                                            ? "var(--bg-tertiary)"
                                             : isOwn
-                                                ? "linear-gradient(135deg, #4d6bfe, #6366f1)"
-                                                : "#ffffff",
-                                        color: isDeleted ? "#9ca3af" : isOwn ? "#fff" : "#1a1a1a",
+                                                ? "linear-gradient(135deg, var(--accent), var(--accent-hover))"
+                                                : "var(--bg-modal)",
+                                        color: isDeleted
+                                            ? "var(--text-muted)"
+                                            : isOwn
+                                                ? "#fff"
+                                                : "var(--text-primary)",
                                         borderRadius: isOwn
                                             ? "16px 16px 4px 16px"
                                             : "16px 16px 16px 4px",
-                                        boxShadow:
-                                            isOwn && !isDeleted
-                                                ? "0 2px 8px rgba(77,107,254,0.25)"
-                                                : "0 1px 3px rgba(0,0,0,0.08)",
+                                        boxShadow: isOwn && !isDeleted ? "var(--shadow-sm)" : "var(--shadow-sm)",
                                         fontStyle: isDeleted ? "italic" : "normal",
                                     }}
                                 >
@@ -604,15 +606,15 @@ const ChatWindow = () => {
                                                 ...styles.replyPreview,
                                                 background: isOwn
                                                     ? "rgba(255,255,255,0.2)"
-                                                    : "rgba(77,107,254,0.08)",
-                                                borderLeft: `3px solid ${isOwn ? "rgba(255,255,255,0.9)" : "#4d6bfe"
+                                                    : "rgba(77,107,254,0.15)",
+                                                borderLeft: `3px solid ${isOwn ? "rgba(255,255,255,0.9)" : "var(--accent)"
                                                     }`,
                                             }}
                                         >
                                             <div
                                                 style={{
                                                     ...styles.replyName,
-                                                    color: isOwn ? "#fff" : "#4d6bfe",
+                                                    color: isOwn ? "#fff" : "var(--accent)",
                                                 }}
                                             >
                                                 {typeof msg.replyTo.sender === "object"
@@ -624,7 +626,7 @@ const ChatWindow = () => {
                                                     ...styles.replyText,
                                                     color: isOwn
                                                         ? "rgba(255,255,255,0.85)"
-                                                        : "#64748b",
+                                                        : "var(--text-secondary)",
                                                 }}
                                             >
                                                 {msg.replyTo.isDeleted
@@ -636,7 +638,11 @@ const ChatWindow = () => {
 
                                     {isDeleted ? (
                                         <div style={styles.deletedRow}>
-                                            <Ban size={14} color="#9ca3af" strokeWidth={2} />
+                                            <Ban
+                                                size={14}
+                                                color="var(--text-muted)"
+                                                strokeWidth={2}
+                                            />
                                             <span>This message was deleted</span>
                                         </div>
                                     ) : (
@@ -648,7 +654,7 @@ const ChatWindow = () => {
                                                         ...styles.time,
                                                         color: isOwn
                                                             ? "rgba(255,255,255,0.7)"
-                                                            : "#9ca3af",
+                                                            : "var(--text-muted)",
                                                     }}
                                                 >
                                                     {new Date(msg.createdAt).toLocaleTimeString([], {
@@ -677,11 +683,11 @@ const ChatWindow = () => {
                                                         style={{
                                                             ...styles.reactionBadge,
                                                             background: isMine
-                                                                ? "#dbeafe"
+                                                                ? "rgba(77,107,254,0.2)"
                                                                 : isOwn
                                                                     ? "rgba(255,255,255,0.25)"
-                                                                    : "#f1f5f9",
-                                                            border: `1px solid ${isMine ? "#4d6bfe" : "transparent"
+                                                                    : "var(--bg-tertiary)",
+                                                            border: `1px solid ${isMine ? "var(--accent)" : "transparent"
                                                                 }`,
                                                         }}
                                                         title={`${count} reaction${count > 1 ? "s" : ""}`}
@@ -691,7 +697,9 @@ const ChatWindow = () => {
                                                             <span
                                                                 style={{
                                                                     ...styles.reactionCount,
-                                                                    color: isMine ? "#4d6bfe" : "#64748b",
+                                                                    color: isMine
+                                                                        ? "var(--accent)"
+                                                                        : "var(--text-secondary)",
                                                                 }}
                                                             >
                                                                 {count}
@@ -710,13 +718,12 @@ const ChatWindow = () => {
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Reply Input Preview */}
             {replyTo && (
                 <div style={styles.replyBar}>
                     <div style={styles.replyBarContent}>
                         <ReplyIcon
                             size={18}
-                            color="#4d6bfe"
+                            color="var(--accent)"
                             strokeWidth={2}
                             style={{ transform: "scaleX(-1)", flexShrink: 0 }}
                         />
@@ -737,12 +744,11 @@ const ChatWindow = () => {
                         onClick={() => setReplyTo(null)}
                         style={styles.replyCloseBtn}
                     >
-                        <X size={18} color="#6b7280" strokeWidth={2} />
+                        <X size={18} color="var(--text-secondary)" strokeWidth={2} />
                     </button>
                 </div>
             )}
 
-            {/* Input */}
             <div style={styles.inputArea}>
                 <div style={styles.inputWrapper}>
                     <input
@@ -769,7 +775,6 @@ const ChatWindow = () => {
                 </div>
             </div>
 
-            {/* Emoji Picker */}
             {emojiPicker && (
                 <div data-emoji-picker="true">
                     <EmojiPicker
@@ -781,7 +786,6 @@ const ChatWindow = () => {
                 </div>
             )}
 
-            {/* Chat 3-dot Menu */}
             {chatMenu && (
                 <div
                     data-chat-menu="true"
@@ -789,13 +793,13 @@ const ChatWindow = () => {
                         position: "fixed",
                         top: chatMenu.y,
                         left: chatMenu.x,
-                        background: "#fff",
+                        background: "var(--bg-modal)",
                         borderRadius: "12px",
-                        boxShadow: "0 10px 40px rgba(0,0,0,0.25)",
+                        boxShadow: "var(--shadow-lg)",
                         padding: "6px",
                         zIndex: 2500,
                         minWidth: "220px",
-                        border: "1px solid #e5e7eb",
+                        border: "1px solid var(--border-color)",
                     }}
                     onClick={(e) => e.stopPropagation()}
                 >
@@ -826,7 +830,7 @@ const ChatWindow = () => {
                             borderRadius: "8px",
                             cursor: "pointer",
                             fontSize: "14px",
-                            color: "#1a1a1a",
+                            color: "var(--text-primary)",
                             fontFamily: "inherit",
                             textAlign: "left",
                         }}
@@ -858,17 +862,27 @@ const ChatWindow = () => {
                             borderRadius: "8px",
                             cursor: "pointer",
                             fontSize: "14px",
-                            color: "#1a1a1a",
+                            color: "var(--text-primary)",
                             fontFamily: "inherit",
                             textAlign: "left",
                         }}
                     >
-                        <BellOff size={18} color="#6b7280" strokeWidth={2} />
-                        <span>{isMuted ? "Unmute notifications" : "Mute notifications"}</span>
+                        <BellOff
+                            size={18}
+                            color="var(--text-secondary)"
+                            strokeWidth={2}
+                        />
+                        <span>
+                            {isMuted ? "Unmute notifications" : "Mute notifications"}
+                        </span>
                     </button>
 
                     <div
-                        style={{ height: "1px", background: "#e5e7eb", margin: "4px 0" }}
+                        style={{
+                            height: "1px",
+                            background: "var(--border-color)",
+                            margin: "4px 0",
+                        }}
                     />
 
                     <button
@@ -923,7 +937,6 @@ const ChatWindow = () => {
                 </div>
             )}
 
-            {/* Clear Chat Confirm */}
             {clearConfirm && (
                 <div
                     style={{
@@ -939,7 +952,7 @@ const ChatWindow = () => {
                 >
                     <div
                         style={{
-                            background: "#fff",
+                            background: "var(--bg-modal)",
                             borderRadius: "16px",
                             padding: "24px",
                             maxWidth: "360px",
@@ -953,7 +966,7 @@ const ChatWindow = () => {
                                 width: "56px",
                                 height: "56px",
                                 borderRadius: "50%",
-                                background: "#fee2e2",
+                                background: "rgba(239,68,68,0.15)",
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
@@ -966,13 +979,19 @@ const ChatWindow = () => {
                             style={{
                                 fontSize: "17px",
                                 fontWeight: "700",
-                                color: "#0f172a",
+                                color: "var(--text-primary)",
                                 marginBottom: "8px",
                             }}
                         >
                             Clear chat?
                         </h3>
-                        <p style={{ fontSize: "14px", color: "#64748b", marginBottom: "20px" }}>
+                        <p
+                            style={{
+                                fontSize: "14px",
+                                color: "var(--text-secondary)",
+                                marginBottom: "20px",
+                            }}
+                        >
                             This will clear all messages in this chat for you. Other members
                             will still see them.
                         </p>
@@ -982,12 +1001,12 @@ const ChatWindow = () => {
                                 style={{
                                     flex: 1,
                                     padding: "11px",
-                                    background: "#fff",
-                                    border: "1px solid #e5e7eb",
+                                    background: "transparent",
+                                    border: "1px solid var(--border-color)",
                                     borderRadius: "10px",
                                     fontSize: "14px",
                                     fontWeight: "500",
-                                    color: "#64748b",
+                                    color: "var(--text-secondary)",
                                     cursor: "pointer",
                                     fontFamily: "inherit",
                                 }}
@@ -1019,7 +1038,6 @@ const ChatWindow = () => {
                 </div>
             )}
 
-            {/* Context Menu */}
             {menuState && (
                 <MessageMenu
                     x={menuState.x}
@@ -1035,7 +1053,6 @@ const ChatWindow = () => {
                 />
             )}
 
-            {/* Message Info Modal */}
             {infoMessage && (
                 <MessageInfoModal
                     message={infoMessage}
@@ -1043,7 +1060,6 @@ const ChatWindow = () => {
                 />
             )}
 
-            {/* Group Info Modal */}
             {showGroupInfo && isGroup && (
                 <GroupInfoModal
                     group={selectedConversation}
@@ -1052,7 +1068,6 @@ const ChatWindow = () => {
                 />
             )}
 
-            {/* Delete Conversation Confirmation */}
             {showDeleteConfirm && (
                 <DeleteConfirmModal
                     title={isGroup ? "Delete group?" : "Delete chat?"}
@@ -1077,10 +1092,11 @@ const styles = {
     window: {
         flex: 1,
         height: "100vh",
-        background: "#f8fafc",
+        background: "var(--bg-secondary)",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
+        transition: "background 0.3s ease",
     },
     emptyState: {
         flex: 1,
@@ -1096,7 +1112,7 @@ const styles = {
         width: "120px",
         height: "120px",
         borderRadius: "50%",
-        background: "linear-gradient(135deg, #eef2ff, #e0e7ff)",
+        background: "linear-gradient(135deg, var(--bg-active), var(--bg-tertiary))",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -1106,18 +1122,19 @@ const styles = {
     title: {
         fontSize: "24px",
         fontWeight: "700",
-        color: "#0f172a",
+        color: "var(--text-primary)",
         marginBottom: "8px",
         letterSpacing: "-0.5px",
     },
-    subtitle: { color: "#64748b", fontSize: "15px", lineHeight: "1.6" },
+    subtitle: { color: "var(--text-secondary)", fontSize: "15px", lineHeight: "1.6" },
     chatHeader: {
         padding: "12px 20px",
-        background: "#ffffff",
-        borderBottom: "1px solid #e5e7eb",
+        background: "var(--bg-primary)",
+        borderBottom: "1px solid var(--border-color)",
         display: "flex",
         alignItems: "center",
         gap: "12px",
+        transition: "background 0.3s ease",
     },
     backBtn: {
         background: "transparent",
@@ -1128,7 +1145,7 @@ const styles = {
         alignItems: "center",
         justifyContent: "center",
         cursor: "pointer",
-        color: "#4d6bfe",
+        color: "var(--accent)",
         flexShrink: 0,
         marginRight: "4px",
     },
@@ -1145,9 +1162,9 @@ const styles = {
         flexShrink: 0,
     },
     headerInfo: { flex: 1 },
-    headerName: { fontSize: "15px", fontWeight: "600", color: "#1a1a1a" },
+    headerName: { fontSize: "15px", fontWeight: "600", color: "var(--text-primary)" },
     headerStatus: { fontSize: "12px", marginTop: "2px" },
-    typingStatus: { color: "#4d6bfe", fontStyle: "italic" },
+    typingStatus: { color: "var(--accent)", fontStyle: "italic" },
     menuBtn: {
         background: "transparent",
         border: "none",
@@ -1172,7 +1189,7 @@ const styles = {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        color: "#9ca3af",
+        color: "var(--text-muted)",
         fontSize: "14px",
     },
     messageRow: {
@@ -1191,25 +1208,25 @@ const styles = {
     senderName: {
         fontSize: "11px",
         fontWeight: "700",
-        color: "#4d6bfe",
+        color: "var(--accent)",
         marginBottom: "4px",
     },
     replyPreview: {
         padding: "6px 10px",
         borderRadius: "6px",
         marginBottom: "8px",
-        borderLeft: "3px solid #4d6bfe",
+        borderLeft: "3px solid var(--accent)",
         opacity: 0.95,
     },
     replyName: {
         fontSize: "11px",
         fontWeight: "700",
         marginBottom: "2px",
-        color: "#4d6bfe",
+        color: "var(--accent)",
     },
     replyText: {
         fontSize: "12px",
-        color: "#64748b",
+        color: "var(--text-secondary)",
         whiteSpace: "nowrap",
         overflow: "hidden",
         textOverflow: "ellipsis",
@@ -1231,15 +1248,15 @@ const styles = {
     time: { fontSize: "10px" },
     tick: { marginLeft: "2px" },
     emojiTrigger: {
-        background: "#ffffff",
-        border: "1px solid #e5e7eb",
+        background: "var(--bg-modal)",
+        border: "1px solid var(--border-color)",
         padding: "6px",
         borderRadius: "50%",
         cursor: "pointer",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+        boxShadow: "var(--shadow-sm)",
         transition: "transform 0.15s",
     },
     reactionsRow: {
@@ -1268,21 +1285,21 @@ const styles = {
     },
     replyBar: {
         padding: "10px 16px 4px 16px",
-        background: "#ffffff",
+        background: "var(--bg-primary)",
         display: "flex",
         alignItems: "flex-end",
         gap: "10px",
-        borderTop: "1px solid #f3f4f6",
+        borderTop: "1px solid var(--border-light)",
     },
     replyBarContent: {
         flex: 1,
         display: "flex",
         alignItems: "flex-start",
         gap: "10px",
-        background: "#f0f9ff",
+        background: "var(--bg-tertiary)",
         padding: "10px 12px",
         borderRadius: "10px",
-        borderLeft: "4px solid #4d6bfe",
+        borderLeft: "4px solid var(--accent)",
     },
     replyBarText: {
         flex: 1,
@@ -1291,12 +1308,12 @@ const styles = {
     replyBarName: {
         fontSize: "12px",
         fontWeight: "700",
-        color: "#4d6bfe",
+        color: "var(--accent)",
         marginBottom: "2px",
     },
     replyBarMessage: {
         fontSize: "12.5px",
-        color: "#64748b",
+        color: "var(--text-secondary)",
         whiteSpace: "nowrap",
         overflow: "hidden",
         textOverflow: "ellipsis",
@@ -1312,24 +1329,25 @@ const styles = {
     },
     inputArea: {
         padding: "12px 16px",
-        background: "#ffffff",
-        borderTop: "1px solid #e5e7eb",
+        background: "var(--bg-primary)",
+        borderTop: "1px solid var(--border-color)",
     },
     inputWrapper: {
         display: "flex",
         alignItems: "center",
         gap: "10px",
-        background: "#f9fafb",
-        border: "1px solid #e5e7eb",
+        background: "var(--bg-input)",
+        border: "1px solid transparent",
         borderRadius: "24px",
         padding: "6px 6px 6px 18px",
+        transition: "background 0.2s",
     },
     messageInput: {
         flex: 1,
         border: "none",
         background: "transparent",
         fontSize: "14px",
-        color: "#1a1a1a",
+        color: "var(--text-primary)",
         padding: "8px 0",
         outline: "none",
     },
@@ -1337,13 +1355,13 @@ const styles = {
         width: "38px",
         height: "38px",
         borderRadius: "50%",
-        background: "linear-gradient(135deg, #4d6bfe, #6366f1)",
+        background: "linear-gradient(135deg, var(--accent), var(--accent-hover))",
         border: "none",
         color: "#fff",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        boxShadow: "0 2px 8px rgba(77,107,254,0.35)",
+        boxShadow: "var(--shadow-sm)",
         transition: "opacity 0.15s",
     },
 };
