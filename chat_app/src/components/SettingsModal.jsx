@@ -1,4 +1,4 @@
-import { X, Moon, Sun, Bell, Lock, User, HelpCircle, LogOut } from "lucide-react";
+import { X, Moon, Sun, Bell, Lock, HelpCircle, LogOut } from "lucide-react";
 import { useSelector } from "react-redux";
 import { useTheme } from "../context/ThemeContext";
 
@@ -11,7 +11,6 @@ const SettingsModal = ({ onClose, onLogout, onProfile }) => {
     return (
         <div style={styles.overlay} onClick={onClose}>
             <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-                {/* Header */}
                 <div style={styles.header}>
                     <h2 style={styles.title}>Settings</h2>
                     <button onClick={onClose} style={styles.closeBtn}>
@@ -19,7 +18,6 @@ const SettingsModal = ({ onClose, onLogout, onProfile }) => {
                     </button>
                 </div>
 
-                {/* Profile Section */}
                 <div style={styles.profileSection} onClick={onProfile}>
                     {user?.profilePicture ? (
                         <img
@@ -39,7 +37,6 @@ const SettingsModal = ({ onClose, onLogout, onProfile }) => {
                     <div style={styles.profileArrow}>→</div>
                 </div>
 
-                {/* Appearance Section */}
                 <div style={styles.sectionLabel}>APPEARANCE</div>
                 <div style={styles.section}>
                     <div style={styles.settingItem}>
@@ -73,7 +70,6 @@ const SettingsModal = ({ onClose, onLogout, onProfile }) => {
                     </div>
                 </div>
 
-                {/* Notifications Section */}
                 <div style={styles.sectionLabel}>NOTIFICATIONS</div>
                 <div style={styles.section}>
                     <div style={styles.settingItem}>
@@ -88,7 +84,6 @@ const SettingsModal = ({ onClose, onLogout, onProfile }) => {
                     </div>
                 </div>
 
-                {/* Privacy Section */}
                 <div style={styles.sectionLabel}>PRIVACY</div>
                 <div style={styles.section}>
                     <div style={styles.settingItem}>
@@ -103,12 +98,15 @@ const SettingsModal = ({ onClose, onLogout, onProfile }) => {
                     </div>
                 </div>
 
-                {/* Support Section */}
                 <div style={styles.sectionLabel}>SUPPORT</div>
                 <div style={styles.section}>
                     <div style={styles.settingItem}>
                         <div style={styles.settingLeft}>
-                            <HelpCircle size={20} color="var(--text-secondary)" strokeWidth={2} />
+                            <HelpCircle
+                                size={20}
+                                color="var(--text-secondary)"
+                                strokeWidth={2}
+                            />
                             <div style={styles.settingText}>
                                 <div style={styles.settingName}>Help & Feedback</div>
                                 <div style={styles.settingDesc}>FAQs, contact us</div>
@@ -118,7 +116,6 @@ const SettingsModal = ({ onClose, onLogout, onProfile }) => {
                     </div>
                 </div>
 
-                {/* Logout */}
                 <div style={{ padding: "16px 20px" }}>
                     <button onClick={onLogout} style={styles.logoutBtn}>
                         <LogOut size={18} color="#ef4444" strokeWidth={2} />

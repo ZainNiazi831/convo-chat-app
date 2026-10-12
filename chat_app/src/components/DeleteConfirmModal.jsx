@@ -11,7 +11,7 @@ const DeleteConfirmModal = ({
         <div style={styles.overlay} onClick={onCancel}>
             <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
                 <button style={styles.closeBtn} onClick={onCancel}>
-                    <X size={18} color="#6b7280" strokeWidth={2} />
+                    <X size={18} color="var(--text-secondary)" strokeWidth={2} />
                 </button>
 
                 <div style={styles.iconWrapper}>
@@ -43,18 +43,18 @@ const styles = {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 1000,
+        zIndex: 3000,
         padding: "20px",
     },
     modal: {
         position: "relative",
-        background: "#fff",
+        background: "var(--bg-modal)",
         borderRadius: "16px",
         padding: "32px 24px 20px 24px",
         width: "100%",
         maxWidth: "400px",
         textAlign: "center",
-        boxShadow: "0 25px 60px rgba(0,0,0,0.3)",
+        boxShadow: "var(--shadow-lg)",
     },
     closeBtn: {
         position: "absolute",
@@ -70,7 +70,7 @@ const styles = {
         width: "56px",
         height: "56px",
         borderRadius: "50%",
-        background: "#fee2e2",
+        background: "rgba(239,68,68,0.15)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -79,12 +79,12 @@ const styles = {
     title: {
         fontSize: "17px",
         fontWeight: "700",
-        color: "#0f172a",
+        color: "var(--text-primary)",
         marginBottom: "8px",
     },
     message: {
         fontSize: "14px",
-        color: "#64748b",
+        color: "var(--text-secondary)",
         lineHeight: "1.5",
         marginBottom: "24px",
     },
@@ -95,13 +95,14 @@ const styles = {
     cancelBtn: {
         flex: 1,
         padding: "11px",
-        background: "#fff",
-        border: "1px solid #e5e7eb",
+        background: "transparent",
+        border: "1px solid var(--border-color)",
         borderRadius: "10px",
         fontSize: "14px",
         fontWeight: "500",
-        color: "#64748b",
+        color: "var(--text-secondary)",
         cursor: "pointer",
+        fontFamily: "inherit",
     },
     deleteBtn: {
         flex: 1,
@@ -113,6 +114,7 @@ const styles = {
         fontWeight: "600",
         color: "#fff",
         cursor: "pointer",
+        fontFamily: "inherit",
         boxShadow: "0 2px 8px rgba(239,68,68,0.35)",
     },
 };

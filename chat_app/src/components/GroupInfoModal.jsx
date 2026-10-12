@@ -9,18 +9,16 @@ const GroupInfoModal = ({ group, onClose, onRemoveMember }) => {
     return (
         <div style={styles.overlay} onClick={onClose}>
             <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-                {/* Header */}
                 <div style={styles.header}>
                     <div style={styles.headerLeft}>
                         <Users size={20} color="#8b5cf6" strokeWidth={2} />
                         <h2 style={styles.title}>Group Info</h2>
                     </div>
                     <button onClick={onClose} style={styles.closeBtn}>
-                        <X size={20} color="#6b7280" strokeWidth={2} />
+                        <X size={20} color="var(--text-secondary)" strokeWidth={2} />
                     </button>
                 </div>
 
-                {/* Group Avatar + Name */}
                 <div style={styles.groupHeader}>
                     <div style={styles.groupAvatar}>
                         <Users size={32} color="#fff" strokeWidth={2} />
@@ -31,7 +29,6 @@ const GroupInfoModal = ({ group, onClose, onRemoveMember }) => {
                     </p>
                 </div>
 
-                {/* Members list */}
                 <div style={styles.membersSection}>
                     <div style={styles.sectionLabel}>
                         MEMBERS ({group.members?.length || 0})
@@ -49,8 +46,7 @@ const GroupInfoModal = ({ group, onClose, onRemoveMember }) => {
                                     </div>
                                     <div style={styles.memberInfo}>
                                         <div style={styles.memberName}>
-                                            {m.name}{" "}
-                                            {isMe && <span style={styles.you}>(You)</span>}
+                                            {m.name} {isMe && <span style={styles.you}>(You)</span>}
                                         </div>
                                         <div style={styles.memberUsername}>@{m.username}</div>
                                     </div>
@@ -92,7 +88,7 @@ const styles = {
         padding: "20px",
     },
     modal: {
-        background: "#fff",
+        background: "var(--bg-modal)",
         borderRadius: "16px",
         width: "100%",
         maxWidth: "440px",
@@ -100,17 +96,17 @@ const styles = {
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        boxShadow: "0 25px 60px rgba(0,0,0,0.3)",
+        boxShadow: "var(--shadow-lg)",
     },
     header: {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         padding: "18px 20px",
-        borderBottom: "1px solid #e5e7eb",
+        borderBottom: "1px solid var(--border-color)",
     },
     headerLeft: { display: "flex", alignItems: "center", gap: "10px" },
-    title: { fontSize: "17px", fontWeight: "700", color: "#1a1a1a" },
+    title: { fontSize: "17px", fontWeight: "700", color: "var(--text-primary)" },
     closeBtn: {
         background: "transparent",
         border: "none",
@@ -122,7 +118,7 @@ const styles = {
     groupHeader: {
         padding: "24px 20px",
         textAlign: "center",
-        borderBottom: "1px solid #f3f4f6",
+        borderBottom: "1px solid var(--border-light)",
     },
     groupAvatar: {
         width: "80px",
@@ -137,10 +133,10 @@ const styles = {
     groupName: {
         fontSize: "20px",
         fontWeight: "700",
-        color: "#1a1a1a",
+        color: "var(--text-primary)",
         marginBottom: "4px",
     },
-    groupMeta: { fontSize: "13px", color: "#9ca3af" },
+    groupMeta: { fontSize: "13px", color: "var(--text-muted)" },
     membersSection: {
         flex: 1,
         overflowY: "auto",
@@ -150,7 +146,7 @@ const styles = {
         padding: "8px 20px",
         fontSize: "11px",
         fontWeight: "600",
-        color: "#9ca3af",
+        color: "var(--text-muted)",
         letterSpacing: "0.5px",
     },
     membersList: { padding: "0 8px" },
@@ -165,7 +161,7 @@ const styles = {
         width: "40px",
         height: "40px",
         borderRadius: "50%",
-        background: "linear-gradient(135deg, #4d6bfe, #6366f1)",
+        background: "linear-gradient(135deg, var(--accent), var(--accent-hover))",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -178,28 +174,32 @@ const styles = {
     memberName: {
         fontSize: "14px",
         fontWeight: "500",
-        color: "#1a1a1a",
+        color: "var(--text-primary)",
         whiteSpace: "nowrap",
         overflow: "hidden",
         textOverflow: "ellipsis",
     },
-    you: { color: "#9ca3af", fontWeight: "400", fontSize: "12px" },
-    memberUsername: { fontSize: "12px", color: "#9ca3af", marginTop: "1px" },
+    you: { color: "var(--text-muted)", fontWeight: "400", fontSize: "12px" },
+    memberUsername: {
+        fontSize: "12px",
+        color: "var(--text-muted)",
+        marginTop: "1px",
+    },
     adminBadge: {
         display: "flex",
         alignItems: "center",
         gap: "4px",
-        background: "#fef3c7",
+        background: "rgba(245,158,11,0.15)",
         padding: "4px 8px",
         borderRadius: "6px",
         fontSize: "11px",
         fontWeight: "600",
-        color: "#b45309",
+        color: "#f59e0b",
         flexShrink: 0,
     },
     removeBtn: {
         background: "transparent",
-        border: "1px solid #fee2e2",
+        border: "1px solid rgba(239,68,68,0.3)",
         padding: "6px",
         borderRadius: "8px",
         cursor: "pointer",

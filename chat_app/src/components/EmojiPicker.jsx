@@ -42,7 +42,8 @@ const EmojiPicker = ({ x, y, onSelect, onClose, currentReaction }) => {
                     onClick={() => onSelect(emoji)}
                     style={{
                         ...styles.emojiBtn,
-                        background: currentReaction === emoji ? "var(--bg-active)" : "transparent",
+                        background:
+                            currentReaction === emoji ? "var(--bg-active)" : "transparent",
                     }}
                     title={emoji}
                 >

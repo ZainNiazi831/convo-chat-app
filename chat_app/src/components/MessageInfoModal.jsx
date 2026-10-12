@@ -15,34 +15,37 @@ const MessageInfoModal = ({ message, onClose }) => {
     return (
         <div style={styles.overlay} onClick={onClose}>
             <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-                {/* Header */}
                 <div style={styles.header}>
                     <div style={styles.headerLeft}>
-                        <Info size={20} color="#4d6bfe" strokeWidth={2} />
+                        <Info size={20} color="var(--accent)" strokeWidth={2} />
                         <h2 style={styles.title}>Message Info</h2>
                     </div>
                     <button onClick={onClose} style={styles.closeBtn}>
-                        <X size={20} color="#6b7280" strokeWidth={2} />
+                        <X size={20} color="var(--text-secondary)" strokeWidth={2} />
                     </button>
                 </div>
 
-                {/* Message Preview */}
                 <div style={styles.previewBox}>
                     <div style={styles.previewLabel}>Message</div>
                     <div style={styles.previewText}>
                         {message.isDeleted ? (
-                            <em style={{ color: "#9ca3af" }}>This message was deleted</em>
+                            <em style={{ color: "var(--text-muted)" }}>
+                                This message was deleted
+                            </em>
                         ) : (
                             message.text
                         )}
                     </div>
                 </div>
 
-                {/* Info Timeline */}
                 <div style={styles.timeline}>
                     <div style={styles.timelineItem}>
                         <div style={styles.iconWrapper}>
-                            <Check size={18} color="#6b7280" strokeWidth={2.5} />
+                            <Check
+                                size={18}
+                                color="var(--text-secondary)"
+                                strokeWidth={2.5}
+                            />
                         </div>
                         <div style={styles.infoContent}>
                             <div style={styles.infoLabel}>Sent</div>
@@ -58,7 +61,9 @@ const MessageInfoModal = ({ message, onClose }) => {
                         <div style={styles.iconWrapper}>
                             <CheckCheck
                                 size={18}
-                                color={message.deliveredAt ? "#6b7280" : "#d1d5db"}
+                                color={
+                                    message.deliveredAt ? "var(--text-secondary)" : "var(--text-muted)"
+                                }
                                 strokeWidth={2.5}
                             />
                         </div>
@@ -78,7 +83,7 @@ const MessageInfoModal = ({ message, onClose }) => {
                         <div style={styles.iconWrapper}>
                             <CheckCheck
                                 size={18}
-                                color={message.isRead ? "#53bdeb" : "#d1d5db"}
+                                color={message.isRead ? "#53bdeb" : "var(--text-muted)"}
                                 strokeWidth={2.5}
                             />
                         </div>
@@ -93,9 +98,8 @@ const MessageInfoModal = ({ message, onClose }) => {
                     </div>
                 </div>
 
-                {/* Footer Info */}
                 <div style={styles.footer}>
-                    <Clock size={14} color="#9ca3af" strokeWidth={2} />
+                    <Clock size={14} color="var(--text-muted)" strokeWidth={2} />
                     <span style={styles.footerText}>
                         Message ID: {message._id?.slice(-8)}
                     </span>
@@ -118,7 +122,7 @@ const styles = {
         padding: "20px",
     },
     modal: {
-        background: "#fff",
+        background: "var(--bg-modal)",
         borderRadius: "16px",
         width: "100%",
         maxWidth: "400px",
@@ -126,25 +130,17 @@ const styles = {
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        boxShadow: "0 25px 60px rgba(0,0,0,0.3)",
+        boxShadow: "var(--shadow-lg)",
     },
     header: {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         padding: "18px 20px",
-        borderBottom: "1px solid #e5e7eb",
+        borderBottom: "1px solid var(--border-color)",
     },
-    headerLeft: {
-        display: "flex",
-        alignItems: "center",
-        gap: "10px",
-    },
-    title: {
-        fontSize: "17px",
-        fontWeight: "700",
-        color: "#1a1a1a",
-    },
+    headerLeft: { display: "flex", alignItems: "center", gap: "10px" },
+    title: { fontSize: "17px", fontWeight: "700", color: "var(--text-primary)" },
     closeBtn: {
         background: "transparent",
         border: "none",
@@ -152,25 +148,23 @@ const styles = {
         borderRadius: "8px",
         cursor: "pointer",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
     },
     previewBox: {
         padding: "16px 20px",
-        background: "#f8fafc",
-        borderBottom: "1px solid #e5e7eb",
+        background: "var(--bg-hover)",
+        borderBottom: "1px solid var(--border-color)",
     },
     previewLabel: {
         fontSize: "11px",
         fontWeight: "600",
-        color: "#64748b",
+        color: "var(--text-secondary)",
         textTransform: "uppercase",
         letterSpacing: "0.5px",
         marginBottom: "6px",
     },
     previewText: {
         fontSize: "14px",
-        color: "#1a1a1a",
+        color: "var(--text-primary)",
         lineHeight: "1.5",
         maxHeight: "80px",
         overflowY: "auto",
@@ -189,44 +183,39 @@ const styles = {
         width: "38px",
         height: "38px",
         borderRadius: "50%",
-        background: "#f1f5f9",
+        background: "var(--bg-tertiary)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         flexShrink: 0,
     },
-    infoContent: {
-        flex: 1,
-    },
+    infoContent: { flex: 1 },
     infoLabel: {
         fontSize: "14px",
         fontWeight: "600",
-        color: "#1a1a1a",
+        color: "var(--text-primary)",
         marginBottom: "2px",
     },
-    infoDate: {
-        fontSize: "12px",
-        color: "#64748b",
-    },
+    infoDate: { fontSize: "12px", color: "var(--text-secondary)" },
     timelineLine: {
         width: "2px",
         height: "20px",
-        background: "#e5e7eb",
+        background: "var(--border-color)",
         marginLeft: "18px",
         marginTop: "4px",
         marginBottom: "4px",
     },
     footer: {
         padding: "12px 20px",
-        background: "#f8fafc",
-        borderTop: "1px solid #e5e7eb",
+        background: "var(--bg-hover)",
+        borderTop: "1px solid var(--border-color)",
         display: "flex",
         alignItems: "center",
         gap: "8px",
     },
     footerText: {
         fontSize: "11px",
-        color: "#9ca3af",
+        color: "var(--text-muted)",
         fontFamily: "monospace",
     },
 };
