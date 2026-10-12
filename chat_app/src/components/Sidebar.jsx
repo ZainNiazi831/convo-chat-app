@@ -332,7 +332,7 @@ const Sidebar = () => {
                                             <div
                                                 style={{
                                                     ...styles.itemName,
-                                                    color: isActive ? "#4d6bfe" : "#1a1a1a",
+                                                    color: isActive ? "var(--accent)" : "var(--text-primary)",
                                                     fontWeight: hasUnread ? "700" : "500",
                                                     flex: 1,
                                                 }}
