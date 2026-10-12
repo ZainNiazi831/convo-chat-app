@@ -78,6 +78,33 @@ const ChatWindow = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
+    // 🔥 Auto-close chatMenu, emojiPicker, menuState on outside click + ESC
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (chatMenu && !e.target.closest('[data-chat-menu]')) {
+                setChatMenu(null);
+            }
+            if (emojiPicker && !e.target.closest('[data-emoji-picker]')) {
+                setEmojiPicker(null);
+            }
+        };
+
+        const handleEsc = (e) => {
+            if (e.key === "Escape") {
+                setChatMenu(null);
+                setEmojiPicker(null);
+                setMenuState(null);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        document.addEventListener("keydown", handleEsc);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+            document.removeEventListener("keydown", handleEsc);
+        };
+    }, [chatMenu, emojiPicker]);
+
     // Mark delivered + read when chat opens
     useEffect(() => {
         if (!selectedConversation || !socket || !user) return;
@@ -744,17 +771,20 @@ const ChatWindow = () => {
 
             {/* Emoji Picker */}
             {emojiPicker && (
-                <EmojiPicker
-                    x={emojiPicker.x}
-                    y={emojiPicker.y}
-                    onSelect={(emoji) => handleReaction(emoji, emojiPicker.messageId)}
-                    onClose={() => setEmojiPicker(null)}
-                />
+                <div data-emoji-picker="true">
+                    <EmojiPicker
+                        x={emojiPicker.x}
+                        y={emojiPicker.y}
+                        onSelect={(emoji) => handleReaction(emoji, emojiPicker.messageId)}
+                        onClose={() => setEmojiPicker(null)}
+                    />
+                </div>
             )}
 
             {/* Chat 3-dot Menu */}
             {chatMenu && (
                 <div
+                    data-chat-menu="true"
                     style={{
                         position: "fixed",
                         top: chatMenu.y,
@@ -771,14 +801,12 @@ const ChatWindow = () => {
                 >
                     <button
                         onClick={() => {
-                            // ⚡ INSTANT optimistic update
                             dispatch(
                                 optimisticToggleFavourite({
                                     conversationId: selectedConversation._id,
                                     userId: currentUserId,
                                 })
                             );
-                            // Backend save in background
                             dispatch(
                                 toggleFavouriteThunk({
                                     conversationId: selectedConversation._id,
