@@ -32,6 +32,11 @@ const userSchema = new mongoose.Schema(
             type: String,
             default: "",
         },
+        bio: {
+            type: String,
+            default: "",
+            maxlength: [200, "Bio cannot exceed 200 characters"],
+        },
         isOnline: {
             type: Boolean,
             default: false,
@@ -44,7 +49,7 @@ const userSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-// Hash password before saving (Mongoose 8 compatible - no next)
+// Hash password before saving (Mongoose 8 compatible)
 userSchema.pre("save", async function () {
     if (!this.isModified("password")) return;
     const salt = await bcrypt.genSalt(10);

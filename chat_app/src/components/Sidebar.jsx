@@ -17,6 +17,7 @@ import {
 } from "../redux/chatSlice";
 import CreateGroupModal from "./CreateGroupModal";
 import SidebarMenu from "./SidebarMenu";
+import ProfileModal from "./ProfileModal";
 
 const Sidebar = () => {
     const dispatch = useDispatch();
@@ -32,6 +33,7 @@ const Sidebar = () => {
     const [activeTab, setActiveTab] = useState("all");
     const [contextMenu, setContextMenu] = useState(null);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
+    const [showProfileModal, setShowProfileModal] = useState(false);
 
     useEffect(() => {
         dispatch(fetchUsers());
@@ -165,6 +167,7 @@ const Sidebar = () => {
             isDeleted: lm.isDeleted,
         };
     };
+
     const getFilteredConversations = () => {
         let filtered = [...conversations];
 
@@ -174,7 +177,7 @@ const Sidebar = () => {
             filtered = filtered.filter((c) => c.type === "group");
         } else if (activeTab === "favourites") {
             filtered = filtered.filter((c) =>
-                c.favourites?.some((id) => String(id) === String(currentUserId))
+                (c.favourites || []).some((id) => String(id) === String(currentUserId))
             );
         }
 
@@ -187,6 +190,7 @@ const Sidebar = () => {
 
         return filtered;
     };
+
     const filteredConversations = getFilteredConversations();
     const hasConversations = conversations.length > 0;
 
@@ -407,9 +411,23 @@ const Sidebar = () => {
                                         });
                                     }}
                                 >
-                                    <div style={styles.smallAvatar}>
-                                        {u.name?.charAt(0).toUpperCase()}
-                                    </div>
+                                    {u.profilePicture ? (
+                                        <img
+                                            src={u.profilePicture}
+                                            alt={u.name}
+                                            style={{
+                                                width: "44px",
+                                                height: "44px",
+                                                borderRadius: "50%",
+                                                objectFit: "cover",
+                                                flexShrink: 0,
+                                            }}
+                                        />
+                                    ) : (
+                                        <div style={styles.smallAvatar}>
+                                            {u.name?.charAt(0).toUpperCase()}
+                                        </div>
+                                    )}
                                     <div style={styles.itemInfo}>
                                         <div style={styles.itemName}>{u.name}</div>
                                         <div style={styles.itemUsername}>@{u.username}</div>
@@ -420,12 +438,29 @@ const Sidebar = () => {
                     </>
                 )}
 
-                {/* Bottom Profile */}
+                {/* Bottom Profile — Clickable */}
                 <div style={styles.bottomProfile}>
-                    <div style={styles.profileCard}>
-                        <div style={styles.avatar}>
-                            {user?.name?.charAt(0).toUpperCase()}
-                        </div>
+                    <div
+                        style={styles.profileCard}
+                        onClick={() => setShowProfileModal(true)}
+                    >
+                        {user?.profilePicture ? (
+                            <img
+                                src={user.profilePicture}
+                                alt="Profile"
+                                style={{
+                                    width: "36px",
+                                    height: "36px",
+                                    borderRadius: "50%",
+                                    objectFit: "cover",
+                                    flexShrink: 0,
+                                }}
+                            />
+                        ) : (
+                            <div style={styles.avatar}>
+                                {user?.name?.charAt(0).toUpperCase()}
+                            </div>
+                        )}
                         <div style={styles.userInfo}>
                             <div style={styles.userName}>{user?.name}</div>
                             <div style={styles.userUsername}>@{user?.username}</div>
@@ -446,7 +481,7 @@ const Sidebar = () => {
                         setActiveTab("all");
                         dispatch(fetchUsers());
                     }}
-                    onProfile={() => alert("Profile page coming soon!")}
+                    onProfile={() => setShowProfileModal(true)}
                     onLogout={handleLogout}
                 />
             )}
@@ -599,6 +634,11 @@ const Sidebar = () => {
             {/* Group Modal */}
             {showGroupModal && (
                 <CreateGroupModal onClose={() => setShowGroupModal(false)} />
+            )}
+
+            {/* Profile Modal */}
+            {showProfileModal && (
+                <ProfileModal onClose={() => setShowProfileModal(false)} />
             )}
         </>
     );
@@ -786,6 +826,8 @@ const styles = {
         padding: "8px 10px",
         borderRadius: "10px",
         background: "#f9fafb",
+        cursor: "pointer",
+        transition: "background 0.15s",
     },
     avatar: {
         width: "36px",

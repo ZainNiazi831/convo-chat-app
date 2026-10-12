@@ -55,6 +55,30 @@ export const logout = createAsyncThunk("auth/logout", async (_, thunkAPI) => {
     return null;
 });
 
+// 🔥 Update Profile
+export const updateProfile = createAsyncThunk(
+    "auth/updateProfile",
+    async (userData, thunkAPI) => {
+        try {
+            const response = await API.put("/users/profile", userData);
+            // Update localStorage with new user data (preserve token)
+            const currentUser = JSON.parse(localStorage.getItem("userInfo"));
+            const updatedUser = {
+                ...currentUser,
+                ...response.data,
+            };
+            localStorage.setItem("userInfo", JSON.stringify(updatedUser));
+            return updatedUser;
+        } catch (error) {
+            const message =
+                error.response?.data?.message ||
+                error.message ||
+                "Failed to update profile";
+            return thunkAPI.rejectWithValue(message);
+        }
+    }
+);
+
 const authSlice = createSlice({
     name: "auth",
     initialState,
@@ -95,6 +119,19 @@ const authSlice = createSlice({
             })
             .addCase(logout.fulfilled, (state) => {
                 state.user = null;
+            })
+            // Update Profile
+            .addCase(updateProfile.pending, (state) => {
+                state.isLoading = true;
+            })
+            .addCase(updateProfile.fulfilled, (state, action) => {
+                state.isLoading = false;
+                state.user = action.payload;
+            })
+            .addCase(updateProfile.rejected, (state, action) => {
+                state.isLoading = false;
+                state.isError = true;
+                state.message = action.payload;
             });
     },
 });

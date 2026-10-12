@@ -53,6 +53,21 @@ export const getUserById = async (req, res) => {
     }
 };
 
+// @desc    Get current user profile
+// @route   GET /api/users/profile/me
+// @access  Private
+export const getMyProfile = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select("-password");
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // @desc    Update user profile
 // @route   PUT /api/users/profile
 // @access  Private
@@ -64,8 +79,36 @@ export const updateProfile = async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
-        user.name = req.body.name || user.name;
-        user.profilePicture = req.body.profilePicture || user.profilePicture;
+        // Check if username is being changed and if it's already taken
+        if (req.body.username && req.body.username !== user.username) {
+            const existingUser = await User.findOne({
+                username: req.body.username.toLowerCase(),
+                _id: { $ne: user._id },
+            });
+            if (existingUser) {
+                return res.status(400).json({ message: "Username already taken" });
+            }
+            user.username = req.body.username.toLowerCase();
+        }
+
+        // Check if email is being changed and if it's already taken
+        if (req.body.email && req.body.email !== user.email) {
+            const existingUser = await User.findOne({
+                email: req.body.email.toLowerCase(),
+                _id: { $ne: user._id },
+            });
+            if (existingUser) {
+                return res.status(400).json({ message: "Email already in use" });
+            }
+            user.email = req.body.email.toLowerCase();
+        }
+
+        // Update other fields
+        if (req.body.name) user.name = req.body.name.trim();
+        if (req.body.bio !== undefined) user.bio = req.body.bio;
+        if (req.body.profilePicture !== undefined) {
+            user.profilePicture = req.body.profilePicture;
+        }
 
         const updatedUser = await user.save();
 
@@ -75,8 +118,12 @@ export const updateProfile = async (req, res) => {
             username: updatedUser.username,
             email: updatedUser.email,
             profilePicture: updatedUser.profilePicture,
+            bio: updatedUser.bio,
+            isOnline: updatedUser.isOnline,
+            lastSeen: updatedUser.lastSeen,
         });
     } catch (error) {
+        console.error("updateProfile error:", error);
         res.status(500).json({ message: error.message });
     }
 };
