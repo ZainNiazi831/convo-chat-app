@@ -173,7 +173,6 @@ const Sidebar = () => {
         } else if (activeTab === "groups") {
             filtered = filtered.filter((c) => c.type === "group");
         } else if (activeTab === "favourites") {
-            // ⭐ Filter conversations where current user is in favourites array
             filtered = filtered.filter((c) =>
                 c.favourites?.some((id) => String(id) === String(currentUserId))
             );
@@ -188,7 +187,6 @@ const Sidebar = () => {
 
         return filtered;
     };
-
     const filteredConversations = getFilteredConversations();
     const hasConversations = conversations.length > 0;
 

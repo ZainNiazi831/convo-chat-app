@@ -207,10 +207,10 @@ export const deleteConversationThunk = createAsyncThunk(
         }
     }
 );
-// ─── TOGGLE FAVOURITE ───
+// ─── TOGGLE FAVOURITE (Optimistic) ───
 export const toggleFavouriteThunk = createAsyncThunk(
     "chat/toggleFavourite",
-    async (conversationId, thunkAPI) => {
+    async ({ conversationId, userId }, thunkAPI) => {
         try {
             const response = await API.put(
                 `/conversations/${conversationId}/favourite`
@@ -221,6 +221,8 @@ export const toggleFavouriteThunk = createAsyncThunk(
                 error.response?.data?.message ||
                 error.message ||
                 "Failed to toggle favourite";
+            // Revert on failure
+            thunkAPI.dispatch(revertFavourite({ conversationId, userId }));
             return thunkAPI.rejectWithValue(message);
         }
     }
@@ -377,6 +379,54 @@ const chatSlice = createSlice({
                 };
             }
         },
+        // Optimistic favourite update
+        optimisticToggleFavourite: (state, action) => {
+            const { conversationId, userId } = action.payload;
+            const index = state.conversations.findIndex(
+                (c) => c._id === conversationId
+            );
+            if (index !== -1) {
+                const conv = state.conversations[index];
+                const favourites = conv.favourites || [];
+                const isFav = favourites.some((id) => String(id) === String(userId));
+
+                if (isFav) {
+                    state.conversations[index] = {
+                        ...conv,
+                        favourites: favourites.filter((id) => String(id) !== String(userId)),
+                    };
+                } else {
+                    state.conversations[index] = {
+                        ...conv,
+                        favourites: [...favourites, userId],
+                    };
+                }
+            }
+        },
+        // Revert if API fails
+        revertFavourite: (state, action) => {
+            const { conversationId, userId } = action.payload;
+            const index = state.conversations.findIndex(
+                (c) => c._id === conversationId
+            );
+            if (index !== -1) {
+                const conv = state.conversations[index];
+                const favourites = conv.favourites || [];
+                const isFav = favourites.some((id) => String(id) === String(userId));
+
+                if (isFav) {
+                    state.conversations[index] = {
+                        ...conv,
+                        favourites: favourites.filter((id) => String(id) !== String(userId)),
+                    };
+                } else {
+                    state.conversations[index] = {
+                        ...conv,
+                        favourites: [...favourites, userId],
+                    };
+                }
+            }
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -464,7 +514,11 @@ const chatSlice = createSlice({
                 const updated = action.payload;
                 const index = state.conversations.findIndex((c) => c._id === updated._id);
                 if (index !== -1) {
-                    state.conversations[index] = updated;
+                    // Preserve existing data + update with server response
+                    state.conversations[index] = {
+                        ...state.conversations[index],
+                        favourites: updated.favourites,
+                    };
                 }
             })
             // Clear Chat
@@ -484,11 +538,8 @@ const chatSlice = createSlice({
                 const { conversationId, muted } = action.payload;
                 const index = state.conversations.findIndex((c) => c._id === conversationId);
                 if (index !== -1) {
-                    const conv = state.conversations[index];
-                    const userId = state.currentUserId;
-                    // Just update a flag in state for UI
                     state.conversations[index] = {
-                        ...conv,
+                        ...state.conversations[index],
                         _muted: muted,
                     };
                 }
@@ -540,6 +591,8 @@ export const {
     clearUnreadForUser,
     markMessageDeleted,
     markMessageReacted,
+    optimisticToggleFavourite,
+    revertFavourite,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;

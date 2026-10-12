@@ -27,6 +27,7 @@ import {
     clearChatThunk,
     toggleMuteThunk,
     fetchConversations,
+    optimisticToggleFavourite,
 } from "../redux/chatSlice";
 import { useSocket } from "../context/SocketContext";
 import useIsMobile from "../hooks/useIsMobile";
@@ -811,9 +812,21 @@ const ChatWindow = () => {
                     onClick={(e) => e.stopPropagation()}
                 >
                     <button
-                        onClick={async () => {
-                            await dispatch(toggleFavouriteThunk(selectedConversation._id));
-                            dispatch(fetchConversations());
+                        onClick={() => {
+                            // 🔥 Optimistic update — instant UI change
+                            dispatch(
+                                optimisticToggleFavourite({
+                                    conversationId: selectedConversation._id,
+                                    userId: currentUserId,
+                                })
+                            );
+                            // Backend call in background
+                            dispatch(
+                                toggleFavouriteThunk({
+                                    conversationId: selectedConversation._id,
+                                    userId: currentUserId,
+                                })
+                            );
                             setChatMenu(null);
                         }}
                         style={{
