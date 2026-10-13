@@ -15,6 +15,10 @@ import {
     Star,
     Eraser,
     BellOff,
+    Paperclip,
+    Image as ImageIcon,
+    Download,
+    Loader,
 } from "lucide-react";
 import {
     sendMessage,
@@ -58,6 +62,10 @@ const ChatWindow = () => {
     const [hoveredMsgId, setHoveredMsgId] = useState(null);
     const [chatMenu, setChatMenu] = useState(null);
     const [clearConfirm, setClearConfirm] = useState(false);
+    const [uploading, setUploading] = useState(false);
+    const [selectedImage, setSelectedImage] = useState(null);
+    const [fullScreenImage, setFullScreenImage] = useState(null);
+    const fileInputRef = useRef(null);
     const messagesEndRef = useRef(null);
     const typingTimeoutRef = useRef(null);
     const inputRef = useRef(null);
@@ -445,6 +453,66 @@ const ChatWindow = () => {
             alert("Network error");
         }
     };
+    // 🔥 Handle image/file selection
+    const handleImageSelect = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Check file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            alert("File too large. Max 5MB allowed.");
+            return;
+        }
+
+        try {
+            setUploading(true);
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const token = JSON.parse(localStorage.getItem("userInfo")).token;
+
+            const response = await fetch(`${API.defaults.baseURL}/upload`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error("Upload failed");
+            }
+
+            const data = await response.json();
+
+            // Send message with image/file
+            const result = await dispatch(
+                sendMessage({
+                    conversationId: selectedConversation._id,
+                    text: text.trim(),
+                    replyTo: replyTo?._id || null,
+                    image: data.fileType.startsWith("image/") ? data.url : "",
+                    file: data.fileType.startsWith("image/") ? "" : data.url,
+                    fileType: data.fileType,
+                    fileName: data.fileName,
+                })
+            );
+
+            if (result.meta.requestStatus === "fulfilled" && socket) {
+                socket.emit("sendMessage", result.payload);
+            }
+
+            setText("");
+            setReplyTo(null);
+        } catch (error) {
+            console.error("Upload error:", error);
+            alert("Failed to upload file");
+        } finally {
+            setUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+        }
+    };
 
     return (
         <main style={styles.window}>
@@ -638,16 +706,42 @@ const ChatWindow = () => {
 
                                     {isDeleted ? (
                                         <div style={styles.deletedRow}>
-                                            <Ban
-                                                size={14}
-                                                color="var(--text-muted)"
-                                                strokeWidth={2}
-                                            />
+                                            <Ban size={14} color="var(--text-muted)" strokeWidth={2} />
                                             <span>This message was deleted</span>
                                         </div>
                                     ) : (
                                         <>
-                                            {msg.text}
+                                            {/* 🔥 Image display */}
+                                            {msg.image && (
+                                                <img
+                                                    src={msg.image}
+                                                    alt="Shared"
+                                                    style={styles.messageImage}
+                                                    onClick={() => setFullScreenImage(msg.image)}
+                                                />
+                                            )}
+
+                                            {/* 🔥 File display */}
+                                            {msg.file && !msg.image && (
+                                                <a
+                                                    href={msg.file}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    style={styles.fileAttachment}
+                                                >
+                                                    <div style={styles.fileIcon}>
+                                                        <Download size={20} color="#fff" strokeWidth={2} />
+                                                    </div>
+                                                    <div style={styles.fileInfo}>
+                                                        <div style={styles.fileName}>
+                                                            {msg.fileName || "Attachment"}
+                                                        </div>
+                                                        <div style={styles.fileType}>{msg.fileType || "File"}</div>
+                                                    </div>
+                                                </a>
+                                            )}
+
+                                            {msg.text && <div>{msg.text}</div>}
                                             <div style={styles.timeRow}>
                                                 <span
                                                     style={{
@@ -749,8 +843,35 @@ const ChatWindow = () => {
                 </div>
             )}
 
+            {/* Input */}
             <div style={styles.inputArea}>
                 <div style={styles.inputWrapper}>
+                    {/* 🔥 Paperclip button */}
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        style={styles.attachBtn}
+                        title="Attach file"
+                        disabled={uploading}
+                    >
+                        {uploading ? (
+                            <Loader
+                                size={20}
+                                color="var(--accent)"
+                                strokeWidth={2}
+                                style={{ animation: "spin 1s linear infinite" }}
+                            />
+                        ) : (
+                            <Paperclip size={20} color="var(--text-secondary)" strokeWidth={2} />
+                        )}
+                    </button>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*,.pdf,.doc,.docx,.txt"
+                        onChange={handleImageSelect}
+                        style={{ display: "none" }}
+                    />
+
                     <input
                         ref={inputRef}
                         type="text"
@@ -1067,6 +1188,26 @@ const ChatWindow = () => {
                     onRemoveMember={handleRemoveMember}
                 />
             )}
+            {/* Full Screen Image */}
+            {fullScreenImage && (
+                <div
+                    style={styles.fullScreenOverlay}
+                    onClick={() => setFullScreenImage(null)}
+                >
+                    <button
+                        onClick={() => setFullScreenImage(null)}
+                        style={styles.fullScreenClose}
+                    >
+                        <X size={28} color="#fff" strokeWidth={2} />
+                    </button>
+                    <img
+                        src={fullScreenImage}
+                        alt="Full screen"
+                        style={styles.fullScreenImage}
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                </div>
+            )}
 
             {showDeleteConfirm && (
                 <DeleteConfirmModal
@@ -1363,6 +1504,93 @@ const styles = {
         justifyContent: "center",
         boxShadow: "var(--shadow-sm)",
         transition: "opacity 0.15s",
+    },
+    attachBtn: {
+        background: "transparent",
+        border: "none",
+        padding: "6px",
+        borderRadius: "50%",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+    },
+    messageImage: {
+        maxWidth: "100%",
+        maxHeight: "300px",
+        borderRadius: "10px",
+        cursor: "pointer",
+        marginBottom: "6px",
+        objectFit: "cover",
+    },
+    fileAttachment: {
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        padding: "10px",
+        background: "rgba(0,0,0,0.05)",
+        borderRadius: "10px",
+        textDecoration: "none",
+        marginBottom: "6px",
+        minWidth: "180px",
+    },
+    fileIcon: {
+        width: "40px",
+        height: "40px",
+        borderRadius: "50%",
+        background: "linear-gradient(135deg, var(--accent), var(--accent-hover))",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+    },
+    fileInfo: {
+        flex: 1,
+        minWidth: 0,
+    },
+    fileName: {
+        fontSize: "13px",
+        fontWeight: "600",
+        color: "inherit",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+    },
+    fileType: {
+        fontSize: "11px",
+        opacity: 0.7,
+        marginTop: "2px",
+    },
+    fullScreenOverlay: {
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0, 0, 0, 0.95)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 5000,
+        padding: "20px",
+    },
+    fullScreenImage: {
+        maxWidth: "100%",
+        maxHeight: "100%",
+        objectFit: "contain",
+        borderRadius: "8px",
+    },
+    fullScreenClose: {
+        position: "absolute",
+        top: "20px",
+        right: "20px",
+        background: "rgba(255,255,255,0.2)",
+        border: "none",
+        padding: "10px",
+        borderRadius: "50%",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 5001,
     },
 };
 

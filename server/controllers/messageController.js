@@ -6,24 +6,28 @@ import Conversation from "../models/Conversation.js";
 // @access  Private
 export const sendMessage = async (req, res) => {
     try {
-        const { conversationId, text, replyTo } = req.body;
+        const { conversationId, text, replyTo, image, file, fileType, fileName } =
+            req.body;
 
-        if (!conversationId || !text) {
-            return res.status(400).json({ message: "All fields are required" });
+        if (!conversationId || (!text && !image && !file)) {
+            return res.status(400).json({ message: "Message content is required" });
         }
 
         let message = await Message.create({
             conversation: conversationId,
             sender: req.user._id,
-            text,
+            text: text || "",
             replyTo: replyTo || null,
+            image: image || "",
+            file: file || "",
+            fileType: fileType || "",
+            fileName: fileName || "",
         });
 
         await Conversation.findByIdAndUpdate(conversationId, {
             lastMessage: message._id,
         });
 
-        // ✅ Populate sender AND replyTo (with replyTo's sender)
         message = await message.populate("sender", "-password");
         message = await message.populate({
             path: "replyTo",

@@ -101,15 +101,21 @@ export const fetchMessages = createAsyncThunk(
     }
 );
 
-// ─── SEND MESSAGE ───
 export const sendMessage = createAsyncThunk(
     "chat/sendMessage",
-    async ({ conversationId, text, replyTo }, thunkAPI) => {
+    async (
+        { conversationId, text, replyTo, image, file, fileType, fileName },
+        thunkAPI
+    ) => {
         try {
             const response = await API.post("/messages", {
                 conversationId,
-                text,
+                text: text || "",
                 replyTo: replyTo || null,
+                image: image || "",
+                file: file || "",
+                fileType: fileType || "",
+                fileName: fileName || "",
             });
             return response.data;
         } catch (error) {
